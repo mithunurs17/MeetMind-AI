@@ -1,0 +1,77 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: meetmind_db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-meetmind_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-meetmind_password}
+      POSTGRES_DB: ${DATABASE_NAME:-meetmind_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-meetmind_user} -d ${DATABASE_NAME:-meetmind_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meetmind_network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: meetmind_backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${DATABASE_USER:-meetmind_user}:${DATABASE_PASSWORD:-meetmind_password}@db:5432/${DATABASE_NAME:-meetmind_db}}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DEBUG: ${DEBUG:-True}
+      PYTHONPATH: /app
+    ports:
+      - "8000:8000"
+    working_dir: /app
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - meetmind_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Streamlit Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: meetmind_frontend
+    env_file:
+      - .env
+    environment:
+      API_URL: ${API_URL:-http://backend:8000}
+      STREAMLIT_PORT: ${STREAMLIT_PORT:-8501}
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+    networks:
+      - meetmind_network
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  meetmind_network:
+    driver: bridge
