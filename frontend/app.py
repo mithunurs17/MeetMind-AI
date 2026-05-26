@@ -288,8 +288,8 @@ html,body{{height:100%;background:var(--bg);color:var(--fg);font-family:'Geist S
   <div class="content-layer">
     <div class="navbar">
       <div class="nav-logo">
-        <div class="logo-badge">🧠</div>
-        MeetMind
+        <div class="logo-badge">Ⓜ️</div>
+        MeetMind AI
       </div>
       
     </div>
@@ -412,12 +412,6 @@ with right:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    st.download_button(
-        "⬇ Export Meetings DOCX",
-        data=meetings_to_docx(meetings),
-        file_name="meetmind_export.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
 
 st.markdown("<br>", unsafe_allow_html=True)
 
