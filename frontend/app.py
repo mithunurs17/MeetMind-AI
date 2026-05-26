@@ -25,7 +25,7 @@ html, body, [class*="css"] {
     font-family: 'Poppins', sans-serif;
 }
 
-/* Hide Streamlit default elements */
+/* Hide Streamlit default menu */
 #MainMenu {
     visibility: hidden;
 }
@@ -38,7 +38,7 @@ header {
     visibility: hidden;
 }
 
-/* Main App Background */
+/* Main Background */
 .stApp {
     background:
         radial-gradient(circle at top left, rgba(99,102,241,0.18), transparent 25%),
@@ -53,7 +53,6 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid rgba(255,255,255,0.08);
 }
 
-/* Sidebar text */
 section[data-testid="stSidebar"] * {
     color: white !important;
 }
@@ -79,15 +78,17 @@ section[data-testid="stSidebar"] * {
     font-size: 60px;
     margin-bottom: 10px;
     font-weight: 700;
+    color: white;
 }
 
 .hero p {
     font-size: 18px;
     opacity: 0.9;
     max-width: 900px;
+    color: white;
 }
 
-/* Floating glow */
+/* Glow */
 .hero::before {
     content: "";
     position: absolute;
@@ -206,15 +207,6 @@ section[data-testid="stSidebar"] * {
     transform: scale(1.03);
 }
 
-/* Typography */
-h1, h2, h3, h4, h5 {
-    color: white;
-}
-
-p {
-    color: rgba(255,255,255,0.82);
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -262,11 +254,11 @@ owners = sorted({
 # =====================================================
 with st.sidebar:
 
-    st.markdown("## 🧠 MeetMind AI")
+    st.title("🧠 MeetMind AI")
 
     st.markdown("---")
 
-    st.markdown("### Navigation")
+    st.subheader("Navigation")
 
     st.markdown("""
 - 📹 Upload Meeting
@@ -277,15 +269,12 @@ with st.sidebar:
 
     st.markdown("---")
 
-    st.markdown("### API Status")
+    st.subheader("API Status")
 
     if health_status.get("status") == "healthy":
         st.success("Backend Connected")
     else:
         st.error("Backend Offline")
-
-    if health_status.get("database"):
-        st.info(f"Database: {health_status.get('database')}")
 
 # =====================================================
 # HERO SECTION
@@ -293,13 +282,13 @@ with st.sidebar:
 st.markdown("""
 <div class="hero">
 
-    <h1>🧠 MeetMind AI</h1>
+<h1>🧠 MeetMind AI</h1>
 
-    <p>
-        AI-powered meeting intelligence platform that transforms
-        transcripts into smart summaries, action items,
-        decisions, risks, and analytics in real time.
-    </p>
+<p>
+AI-powered meeting intelligence platform that transforms
+transcripts into smart summaries, action items,
+decisions, risks, and analytics in real time.
+</p>
 
 </div>
 """, unsafe_allow_html=True)
@@ -307,7 +296,7 @@ st.markdown("""
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =====================================================
-# METRICS
+# METRIC CARDS
 # =====================================================
 col1, col2, col3, col4 = st.columns(4)
 
@@ -348,20 +337,13 @@ for col, card in zip([col1, col2, col3, col4], cards):
     with col:
 
         st.markdown(f"""
-        <div class="metric-card"
-             style="background:{gradient};">
+        <div class="metric-card" style="background:{gradient};">
 
-            <div class="metric-title">
-                {title}
-            </div>
+            <div class="metric-title">{title}</div>
 
-            <div class="metric-value">
-                {value}
-            </div>
+            <div class="metric-value">{value}</div>
 
-            <div class="metric-desc">
-                {desc}
-            </div>
+            <div class="metric-desc">{desc}</div>
 
         </div>
         """, unsafe_allow_html=True)
@@ -369,55 +351,53 @@ for col, card in zip([col1, col2, col3, col4], cards):
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =====================================================
-# ANALYTICS SECTION
+# ANALYTICS
 # =====================================================
-left, right = st.columns([3, 1.5])
+left, right = st.columns([3, 1.4])
 
-# LEFT
 with left:
 
     st.markdown("""
     <div class="glass-card">
 
-        <h2>📈 Meeting Analytics</h2>
+    <h2>📈 Meeting Analytics</h2>
 
-        <p style="opacity:0.8;">
-            Visualize collaboration efficiency and meeting insights
-            in real-time using AI-powered analysis.
-        </p>
+    <p style="opacity:0.8;">
+    Visualize collaboration efficiency and meeting insights
+    in real-time using AI-powered analysis.
+    </p>
 
-        <br>
+    <br>
 
-        <div class="progress-bar">
-            <div class="progress-fill"></div>
-        </div>
+    <div class="progress-bar">
+        <div class="progress-fill"></div>
+    </div>
 
-        <br>
+    <br>
 
-        <p style="opacity:0.7;">
-            Keep uploading meeting transcripts to unlock richer
-            analytics and productivity insights.
-        </p>
+    <p style="opacity:0.7;">
+    Keep uploading meeting transcripts to unlock richer
+    analytics and productivity insights.
+    </p>
 
     </div>
     """, unsafe_allow_html=True)
 
-# RIGHT
 with right:
 
     st.markdown(f"""
     <div class="glass-card">
 
-        <h3>⚡ Quick Insights</h3>
+    <h3>⚡ Quick Insights</h3>
 
-        <br>
+    <br>
 
-        <p><b>👥 Owners Engaged:</b> {len(owners)}</p>
+    <p><b>👥 Owners Engaged:</b> {len(owners)}</p>
 
-        <p><b>🟢 AI Health:</b> {health_status.get('status', 'unknown')}</p>
+    <p><b>🟢 AI Health:</b> {health_status.get('status', 'unknown')}</p>
 
-        <p><b>🕒 Last Sync:</b><br>
-        {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</p>
+    <p><b>🕒 Last Sync:</b><br>
+    {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</p>
 
     </div>
     """, unsafe_allow_html=True)
@@ -439,24 +419,16 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("""
 <div class="glass-card">
 
-    <h2>🚀 Getting Started</h2>
+<h2>🚀 Getting Started</h2>
 
-    <br>
+<br>
 
-    <p>
-        1️⃣ Upload meeting transcripts or notes.
-    </p>
+<p>1️⃣ Upload meeting transcripts or notes.</p>
 
-    <p>
-        2️⃣ AI automatically extracts summaries,
-        action items, risks, and decisions.
-    </p>
+<p>2️⃣ AI automatically extracts summaries,
+action items, risks, and decisions.</p>
 
-    <p>
-        3️⃣ Review analytics and collaborate with your team efficiently.
-    </p>
+<p>3️⃣ Review analytics and collaborate with your team efficiently.</p>
 
 </div>
 """, unsafe_allow_html=True)
-
-st.markdown("<br><br>", unsafe_allow_html=True)
