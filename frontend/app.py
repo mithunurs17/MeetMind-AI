@@ -298,57 +298,88 @@ st.markdown("<br>", unsafe_allow_html=True)
 # =====================================================
 # METRIC CARDS
 # =====================================================
+
 col1, col2, col3, col4 = st.columns(4)
 
-cards = [
-    (
-        "Total Meetings",
-        len(meetings),
-        "Meetings analyzed",
-        "linear-gradient(135deg,#4f46e5,#7c3aed)"
-    ),
+with col1:
+    st.markdown("""
+    <div class="metric-card"
+         style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">
 
-    (
-        "Action Items",
-        len(action_items),
-        "Tasks extracted",
-        "linear-gradient(135deg,#06b6d4,#3b82f6)"
-    ),
-
-    (
-        "Decisions",
-        len(decisions),
-        "Key decisions captured",
-        "linear-gradient(135deg,#f59e0b,#ef4444)"
-    ),
-
-    (
-        "Risks & Questions",
-        len(risks) + len(open_questions),
-        "Pending blockers",
-        "linear-gradient(135deg,#ec4899,#8b5cf6)"
-    ),
-]
-
-for col, card in zip([col1, col2, col3, col4], cards):
-
-    title, value, desc, gradient = card
-
-    with col:
-
-        st.markdown(f"""
-        <div class="metric-card" style="background:{gradient};">
-
-            <div class="metric-title">{title}</div>
-
-            <div class="metric-value">{value}</div>
-
-            <div class="metric-desc">{desc}</div>
-
+        <div class="metric-title">
+            Total Meetings
         </div>
-        """, unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
+        <div class="metric-value">
+            4
+        </div>
+
+        <div class="metric-desc">
+            Meetings analyzed
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div class="metric-card"
+         style="background:linear-gradient(135deg,#06b6d4,#3b82f6);">
+
+        <div class="metric-title">
+            Action Items
+        </div>
+
+        <div class="metric-value">
+            5
+        </div>
+
+        <div class="metric-desc">
+            Tasks extracted
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown("""
+    <div class="metric-card"
+         style="background:linear-gradient(135deg,#f59e0b,#ef4444);">
+
+        <div class="metric-title">
+            Decisions
+        </div>
+
+        <div class="metric-value">
+            4
+        </div>
+
+        <div class="metric-desc">
+            Key decisions captured
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    st.markdown("""
+    <div class="metric-card"
+         style="background:linear-gradient(135deg,#ec4899,#8b5cf6);">
+
+        <div class="metric-title">
+            Risks & Questions
+        </div>
+
+        <div class="metric-value">
+            4
+        </div>
+
+        <div class="metric-desc">
+            Pending blockers
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
 
 # =====================================================
 # ANALYTICS
