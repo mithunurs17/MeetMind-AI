@@ -1,15 +1,18 @@
 import json
 from datetime import datetime
+from io import BytesIO
 
 import streamlit as st
-import streamlit.components.v1 as components
+from docx import Document
+
 from utils.api_client import api_client
 
 # =====================================================
 # PAGE CONFIG
 # =====================================================
+
 st.set_page_config(
-    page_title="MeetMind AI Dashboard",
+    page_title="MeetMind AI",
     page_icon="🧠",
     layout="wide",
 )
@@ -17,174 +20,397 @@ st.set_page_config(
 # =====================================================
 # CUSTOM CSS
 # =====================================================
+
 st.markdown("""
 <style>
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Barlow:wght@300;400;500;600&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Barlow', sans-serif;
 }
 
-/* Hide Streamlit default menu */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-header { visibility: hidden; }
+/* =====================================================
+HIDE STREAMLIT
+===================================================== */
 
-/* Main Background */
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+header {
+    visibility: hidden;
+}
+
+/* =====================================================
+APP BACKGROUND
+===================================================== */
+
 .stApp {
+
     background:
-        radial-gradient(circle at top left, rgba(99,102,241,0.18), transparent 25%),
-        radial-gradient(circle at bottom right, rgba(236,72,153,0.15), transparent 25%),
-        #0f172a;
+        radial-gradient(circle at top left,
+        rgba(99,102,241,0.25),
+        transparent 25%),
+
+        radial-gradient(circle at bottom right,
+        rgba(236,72,153,0.15),
+        transparent 25%),
+
+        #000;
+
     color: white;
 }
 
-/* Sidebar */
+/* =====================================================
+SIDEBAR
+===================================================== */
+
 section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #111827, #0f172a);
-    border-right: 1px solid rgba(255,255,255,0.08);
+
+    background: rgba(255,255,255,0.03);
+
+    backdrop-filter: blur(20px);
+
+    border-right:
+        1px solid rgba(255,255,255,0.08);
 }
 
 section[data-testid="stSidebar"] * {
     color: white !important;
 }
 
-/* Hero Section */
-.hero {
+/* =====================================================
+LIQUID GLASS
+===================================================== */
+
+.liquid-glass {
+
+    background: rgba(255,255,255,0.03);
+
+    background-blend-mode: luminosity;
+
+    backdrop-filter: blur(12px);
+
+    -webkit-backdrop-filter: blur(12px);
+
+    border: none;
+
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.1),
+        0 8px 30px rgba(0,0,0,0.35);
+
     position: relative;
+
     overflow: hidden;
-    border-radius: 30px;
-    padding: 50px;
-    background: linear-gradient(
-        135deg,
-        rgba(79,70,229,0.95),
-        rgba(124,58,237,0.90),
-        rgba(236,72,153,0.85)
-    );
-    box-shadow: 0 15px 40px rgba(0,0,0,0.4);
 }
 
-.hero h1 {
-    font-size: 60px;
-    margin-bottom: 10px;
-    font-weight: 700;
-    color: white;
-}
+.liquid-glass::before {
 
-.hero p {
-    font-size: 18px;
-    opacity: 0.9;
-    max-width: 900px;
-    color: white;
-}
-
-.hero::before {
     content: "";
+
     position: absolute;
-    width: 500px;
-    height: 500px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.10);
-    top: -200px;
-    right: -100px;
-    filter: blur(60px);
+
+    inset: 0;
+
+    border-radius: inherit;
+
+    padding: 1.4px;
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255,255,255,0.45) 0%,
+            rgba(255,255,255,0.15) 20%,
+            rgba(255,255,255,0) 40%,
+            rgba(255,255,255,0) 60%,
+            rgba(255,255,255,0.15) 80%,
+            rgba(255,255,255,0.45) 100%
+        );
+
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+
+    -webkit-mask-composite: xor;
+
+    mask-composite: exclude;
+
+    pointer-events: none;
 }
 
-/* ── Metric Cards ── */
-.metric-row {
-    display: flex;
-    gap: 20px;
-    margin-bottom: 24px;
+/* =====================================================
+HERO SECTION
+===================================================== */
+
+.hero {
+
+    position: relative;
+
+    overflow: hidden;
+
+    border-radius: 36px;
+
+    padding: 80px 60px;
+
+    min-height: 450px;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(255,255,255,0.05),
+            rgba(255,255,255,0.02)
+        );
+
+    margin-bottom: 30px;
 }
+
+.hero::after {
+
+    content: "";
+
+    position: absolute;
+
+    width: 600px;
+    height: 600px;
+
+    border-radius: 50%;
+
+    background: rgba(255,255,255,0.08);
+
+    top: -300px;
+    right: -150px;
+
+    filter: blur(90px);
+}
+
+.hero-title {
+
+    font-family: 'Instrument Serif', serif;
+
+    font-style: italic;
+
+    font-size: 5.5rem;
+
+    line-height: 0.9;
+
+    letter-spacing: -4px;
+
+    color: white;
+
+    max-width: 850px;
+
+    position: relative;
+
+    z-index: 2;
+}
+
+.hero-sub {
+
+    margin-top: 30px;
+
+    font-size: 17px;
+
+    line-height: 1.6;
+
+    color: rgba(255,255,255,0.82);
+
+    max-width: 700px;
+
+    position: relative;
+
+    z-index: 2;
+}
+
+.glass-btn {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    padding: 14px 28px;
+
+    border-radius: 999px;
+
+    margin-top: 35px;
+
+    font-size: 14px;
+
+    font-weight: 500;
+
+    color: white;
+
+    background: rgba(255,255,255,0.04);
+
+    backdrop-filter: blur(20px);
+
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.15),
+        0 8px 20px rgba(0,0,0,0.3);
+
+    width: fit-content;
+
+    position: relative;
+
+    z-index: 2;
+}
+
+/* =====================================================
+METRIC CARDS
+===================================================== */
 
 .metric-card {
-    flex: 1;
-    border-radius: 24px;
-    padding: 28px 25px;
-    color: white;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    min-width: 0;          /* prevent flex overflow */
+
+    border-radius: 28px;
+
+    padding: 28px;
+
+    min-height: 180px;
+
+    transition: 0.35s ease;
 }
 
 .metric-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+
+    transform: translateY(-8px);
 }
 
 .metric-title {
+
     font-size: 14px;
-    font-weight: 500;
-    opacity: 0.85;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
+
+    color: rgba(255,255,255,0.72);
+
+    margin-bottom: 18px;
 }
 
 .metric-value {
+
+    font-family: 'Instrument Serif', serif;
+
+    font-style: italic;
+
     font-size: 52px;
-    font-weight: 700;
-    margin: 10px 0 6px;
+
     line-height: 1;
+
+    color: white;
 }
 
 .metric-desc {
+
+    margin-top: 16px;
+
     font-size: 13px;
-    opacity: 0.75;
+
+    color: rgba(255,255,255,0.72);
 }
 
-/* Glass Cards */
+/* =====================================================
+GLASS CONTENT CARD
+===================================================== */
+
 .glass-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-    backdrop-filter: blur(14px);
-    border-radius: 24px;
-    padding: 28px;
-    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
-    transition: transform 0.3s ease;
+
+    border-radius: 28px;
+
+    padding: 30px;
+
+    margin-top: 20px;
 }
 
-.glass-card:hover {
-    transform: translateY(-5px);
+.glass-card h2,
+.glass-card h3 {
+
+    color: white;
 }
 
-/* Progress Bar */
+.glass-card p {
+
+    color: rgba(255,255,255,0.82);
+
+    line-height: 1.7;
+}
+
+/* =====================================================
+PROGRESS BAR
+===================================================== */
+
 .progress-bar {
+
     width: 100%;
+
     height: 14px;
+
     border-radius: 999px;
+
     background: rgba(255,255,255,0.08);
+
     overflow: hidden;
+
+    margin-top: 20px;
 }
 
 .progress-fill {
-    width: 200%;
+
+    width: 70%;
+
     height: 100%;
-    background: linear-gradient(90deg, #06b6d4, #8b5cf6, #ec4899, #06b6d4);
-    animation: slide 2.5s linear infinite;
+
+    background:
+        linear-gradient(
+            90deg,
+            #06b6d4,
+            #8b5cf6,
+            #ec4899
+        );
+
+    animation: move 3s infinite;
 }
 
-@keyframes slide {
-    0%   { transform: translateX(-50%); }
-    100% { transform: translateX(0%);   }
+@keyframes move {
+
+    0% {
+        transform: translateX(-40%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
 }
 
-/* Buttons */
-.stButton > button,
+/* =====================================================
+BUTTONS
+===================================================== */
+
 .stDownloadButton > button {
-    width: 100%;
-    border: none;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
-    color: white;
-    font-weight: 600;
-    padding: 0.7rem 1rem;
-    transition: transform 0.3s ease;
-}
 
-.stButton > button:hover,
-.stDownloadButton > button:hover {
-    transform: scale(1.03);
+    width: 100%;
+
+    border: none;
+
+    border-radius: 999px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #7c3aed,
+            #4f46e5
+        );
+
+    color: white;
+
+    font-weight: 600;
+
+    padding: 0.8rem 1rem;
+
+    margin-top: 15px;
 }
 
 </style>
@@ -193,10 +419,15 @@ section[data-testid="stSidebar"] * {
 # =====================================================
 # API DATA
 # =====================================================
+
 health_status = api_client.health_check()
 
 meetings_response = api_client.get_meetings()
-meetings = meetings_response if isinstance(meetings_response, list) else []
+
+meetings = meetings_response if isinstance(
+    meetings_response,
+    list
+) else []
 
 action_items = [
     item
@@ -228,20 +459,18 @@ owners = sorted({
     if item.get("owner")
 })
 
-# Derived counts for metrics
-total_meetings   = len(meetings)
-total_actions    = len(action_items)
-total_decisions  = len(decisions)
-total_risks_q    = len(risks) + len(open_questions)
-
 # =====================================================
 # SIDEBAR
 # =====================================================
+
 with st.sidebar:
+
     st.title("🧠 MeetMind AI")
+
     st.markdown("---")
 
     st.subheader("Navigation")
+
     st.markdown("""
 - 📹 Upload Meeting
 - 📋 View Minutes
@@ -251,7 +480,8 @@ with st.sidebar:
 
     st.markdown("---")
 
-    st.subheader("API Status")
+    st.subheader("System Status")
+
     if health_status.get("status") == "healthy":
         st.success("Backend Connected")
     else:
@@ -260,165 +490,249 @@ with st.sidebar:
 # =====================================================
 # HERO SECTION
 # =====================================================
+
 st.markdown("""
-<div class="hero">
-    <h1>🧠 MeetMind AI</h1>
-    <p>
+<div class="hero liquid-glass">
+
+    <div class="hero-title">
+        Venture Past <br>
+        Our Sky Across <br>
+        the Universe
+    </div>
+
+    <div class="hero-sub">
         AI-powered meeting intelligence platform that transforms
-        transcripts into smart summaries, action items,
-        decisions, risks, and analytics in real time.
-    </p>
+        transcripts into summaries, action items,
+        decisions, risks, and premium analytics in real time.
+    </div>
+
+    <div class="glass-btn">
+        🚀 Start Your Voyage
+    </div>
+
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
+# =====================================================
+# METRICS
+# =====================================================
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+
+    st.markdown(f"""
+    <div class="metric-card liquid-glass">
+
+        <div class="metric-title">
+            Total Meetings
+        </div>
+
+        <div class="metric-value">
+            {len(meetings)}
+        </div>
+
+        <div class="metric-desc">
+            Meetings analyzed
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+
+    st.markdown(f"""
+    <div class="metric-card liquid-glass">
+
+        <div class="metric-title">
+            Action Items
+        </div>
+
+        <div class="metric-value">
+            {len(action_items)}
+        </div>
+
+        <div class="metric-desc">
+            Tasks extracted
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+
+    st.markdown(f"""
+    <div class="metric-card liquid-glass">
+
+        <div class="metric-title">
+            Decisions
+        </div>
+
+        <div class="metric-value">
+            {len(decisions)}
+        </div>
+
+        <div class="metric-desc">
+            Key decisions captured
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+
+    st.markdown(f"""
+    <div class="metric-card liquid-glass">
+
+        <div class="metric-title">
+            Risks & Questions
+        </div>
+
+        <div class="metric-value">
+            {len(risks) + len(open_questions)}
+        </div>
+
+        <div class="metric-desc">
+            Pending blockers
+        </div>
+
+    </div>
+    """, unsafe_allow_html=True)
 
 # =====================================================
-# METRIC CARDS  — rendered via components.html so Streamlit
-# never sanitises the markup
+# ANALYTICS SECTION
 # =====================================================
-components.html(f"""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-
-  body {{
-    background: transparent;
-    font-family: 'Poppins', sans-serif;
-  }}
-
-  .metric-row {{
-    display: flex;
-    gap: 20px;
-  }}
-
-  .metric-card {{
-    flex: 1;
-    border-radius: 24px;
-    padding: 28px 25px;
-    color: white;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    min-width: 0;
-  }}
-
-  .metric-card:hover {{
-    transform: translateY(-6px);
-    box-shadow: 0 18px 40px rgba(0,0,0,0.45);
-  }}
-
-  .metric-title {{
-    font-size: 13px;
-    font-weight: 500;
-    opacity: 0.85;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-  }}
-
-  .metric-value {{
-    font-size: 52px;
-    font-weight: 700;
-    margin: 10px 0 6px;
-    line-height: 1;
-  }}
-
-  .metric-desc {{
-    font-size: 13px;
-    opacity: 0.75;
-  }}
-</style>
-</head>
-<body>
-  <div class="metric-row">
-
-    <div class="metric-card"
-         style="background: linear-gradient(135deg, #4f46e5, #7c3aed);">
-      <div class="metric-title">Total Meetings</div>
-      <div class="metric-value">{total_meetings}</div>
-      <div class="metric-desc">Meetings analyzed</div>
-    </div>
-
-    <div class="metric-card"
-         style="background: linear-gradient(135deg, #06b6d4, #3b82f6);">
-      <div class="metric-title">Action Items</div>
-      <div class="metric-value">{total_actions}</div>
-      <div class="metric-desc">Tasks extracted</div>
-    </div>
-
-    <div class="metric-card"
-         style="background: linear-gradient(135deg, #f59e0b, #ef4444);">
-      <div class="metric-title">Decisions</div>
-      <div class="metric-value">{total_decisions}</div>
-      <div class="metric-desc">Key decisions captured</div>
-    </div>
-
-    <div class="metric-card"
-         style="background: linear-gradient(135deg, #ec4899, #8b5cf6);">
-      <div class="metric-title">Risks &amp; Questions</div>
-      <div class="metric-value">{total_risks_q}</div>
-      <div class="metric-desc">Pending blockers</div>
-    </div>
-
-  </div>
-</body>
-</html>
-""", height=160)
-
-# =====================================================
-# ANALYTICS
-# =====================================================
-left, right = st.columns([3, 1.4])
+left, right = st.columns([3, 1.5])
 
 with left:
+
     st.markdown("""
-    <div class="glass-card">
+    <div class="glass-card liquid-glass">
+
         <h2>📈 Meeting Analytics</h2>
-        <p style="opacity:0.8;">
-            Visualize collaboration efficiency and meeting insights
-            in real-time using AI-powered analysis.
+
+        <p>
+            Visualize collaboration efficiency and
+            meeting insights in real-time using
+            AI-powered analysis.
         </p>
-        <br>
+
         <div class="progress-bar">
             <div class="progress-fill"></div>
         </div>
-        <br>
-        <p style="opacity:0.7;">
+
+        <p style="margin-top:20px;">
             Keep uploading meeting transcripts to unlock richer
             analytics and productivity insights.
         </p>
+
     </div>
     """, unsafe_allow_html=True)
 
 with right:
+
     st.markdown(f"""
-    <div class="glass-card">
+    <div class="glass-card liquid-glass">
+
         <h3>⚡ Quick Insights</h3>
-        <br>
+
         <p><b>👥 Owners Engaged:</b> {len(owners)}</p>
+
         <p><b>🟢 AI Health:</b> {health_status.get('status', 'unknown')}</p>
+
         <p><b>🕒 Last Sync:</b><br>
         {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</p>
+
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    # =====================================================
+    # DOCX EXPORT
+    # =====================================================
 
-st.markdown("<br>", unsafe_allow_html=True)
+    doc = Document()
+
+    doc.add_heading(
+        "MeetMind AI - Meeting Report",
+        level=1
+    )
+
+    for index, meeting in enumerate(meetings, start=1):
+
+        doc.add_heading(
+            f"Meeting {index}",
+            level=2
+        )
+
+        if meeting.get("summary"):
+
+            doc.add_heading(
+                "Summary",
+                level=3
+            )
+
+            doc.add_paragraph(
+                str(meeting.get("summary"))
+            )
+
+        if meeting.get("action_items"):
+
+            doc.add_heading(
+                "Action Items",
+                level=3
+            )
+
+            for item in meeting["action_items"]:
+
+                task = item.get(
+                    "task",
+                    "No Task"
+                )
+
+                owner = item.get(
+                    "owner",
+                    "Unknown"
+                )
+
+                doc.add_paragraph(
+                    f"• {task} (Owner: {owner})"
+                )
+
+    buffer = BytesIO()
+
+    doc.save(buffer)
+
+    buffer.seek(0)
+
+    st.download_button(
+        label="⬇ Export Meetings DOCX",
+        data=buffer,
+        file_name="meetmind_report.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 # =====================================================
 # GETTING STARTED
 # =====================================================
+
 st.markdown("""
-<div class="glass-card">
+<div class="glass-card liquid-glass">
+
     <h2>🚀 Getting Started</h2>
-    <br>
-    <p>1️⃣ Upload meeting transcripts or notes.</p>
-    <p>2️⃣ AI automatically extracts summaries,
-    action items, risks, and decisions.</p>
-    <p>3️⃣ Review analytics and collaborate with your team efficiently.</p>
+
+    <p>
+        1️⃣ Upload meeting transcripts or notes.
+    </p>
+
+    <p>
+        2️⃣ AI automatically extracts summaries,
+        action items, risks, and decisions.
+    </p>
+
+    <p>
+        3️⃣ Review analytics and collaborate with your team efficiently.
+    </p>
+
 </div>
 """, unsafe_allow_html=True)
