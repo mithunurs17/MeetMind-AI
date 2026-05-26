@@ -407,12 +407,7 @@ with right:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    st.download_button(
-        "⬇ Export Meetings JSON",
-        json.dumps(meetings, default=str, indent=2),
-        file_name="meetmind_export.json",
-        mime="application/json",
-    )
+    
 
 st.markdown("<br>", unsafe_allow_html=True)
 
