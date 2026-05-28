@@ -151,31 +151,95 @@ label {
   transform: scale(1.02) !important;
 }
 
-/* Table */
-[data-testid="stTable"] table {
-  background: transparent !important;
+/* Table — full visibility */
+[data-testid="stTable"],
+[data-testid="stTable"] * {
   color: var(--fg) !important;
+}
+[data-testid="stTable"] table {
+  background: rgba(255,255,255,0.02) !important;
   border-collapse: collapse !important;
   width: 100% !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+[data-testid="stTable"] thead tr {
+  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.18)) !important;
 }
 [data-testid="stTable"] th {
-  background: rgba(99,102,241,0.15) !important;
-  color: var(--fg) !important;
-  font-size: 12px !important;
-  letter-spacing: .06em !important;
+  color: #e0e7ff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: .08em !important;
   text-transform: uppercase !important;
-  padding: 10px 14px !important;
+  padding: 12px 16px !important;
   border: none !important;
+  white-space: nowrap !important;
 }
 [data-testid="stTable"] td {
-  background: rgba(255,255,255,0.02) !important;
-  color: var(--sub) !important;
-  border-top: 1px solid rgba(255,255,255,0.06) !important;
-  padding: 10px 14px !important;
+  background: transparent !important;
+  color: hsl(40,6%,90%) !important;
+  font-size: 13px !important;
+  border-top: 1px solid rgba(255,255,255,0.07) !important;
+  padding: 11px 16px !important;
 }
 [data-testid="stTable"] tr:hover td {
-  background: rgba(255,255,255,0.05) !important;
+  background: rgba(99,102,241,0.08) !important;
+  color: #fff !important;
 }
+
+/* Custom action items table */
+.action-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 14px;
+  overflow: hidden;
+  font-family: 'Geist Sans', sans-serif;
+}
+.action-table thead tr {
+  background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.2));
+}
+.action-table th {
+  color: #e0e7ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 12px 14px;
+  text-align: left;
+  border: none;
+  white-space: nowrap;
+}
+.action-table td {
+  color: hsl(40,6%,88%);
+  font-size: 13px;
+  padding: 11px 14px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  vertical-align: top;
+}
+.action-table tbody tr {
+  background: rgba(255,255,255,0.02);
+  transition: background 0.15s;
+}
+.action-table tbody tr:hover {
+  background: rgba(99,102,241,0.1);
+}
+.action-table tbody tr:hover td {
+  color: #fff;
+}
+.status-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.status-pending   { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+.status-progress  { background: rgba(99,102,241,0.15);  color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+.status-completed { background: rgba(34,197,94,0.12);   color: #86efac; border: 1px solid rgba(34,197,94,0.25); }
 
 hr { border-color: rgba(255,255,255,0.08) !important; }
 
@@ -331,7 +395,7 @@ risks          = selected_meeting.get("risks") or []
 st.markdown("---")
 
 # ── Two-column layout ────────────────────────────────────────────────────
-left, right = st.columns([3, 2])
+left, right = st.columns([1, 1])
 
 with left:
     st.markdown("## Executive Summary")
@@ -346,16 +410,29 @@ with left:
 with right:
     st.markdown("## Action Items")
     if action_items:
-        table_data = [
-            {
-                "Task":   item.get("task"),
-                "Owner":  item.get("owner") or "Unassigned",
-                "Due":    str(item.get("due_date") or "TBD"),
-                "Status": item.get("status") or "pending",
-            }
-            for item in action_items
-        ]
-        st.table(table_data)
+        def _status_pill(status: str) -> str:
+            s = (status or "pending").lower()
+            cls = {"pending": "status-pending", "in progress": "status-progress", "completed": "status-completed"}.get(s, "status-pending")
+            return f"<span class='status-pill {cls}'>{status or 'pending'}</span>"
+
+        rows = ""
+        for item in action_items:
+            rows += (
+                f"<tr>"
+                f"<td>{item.get('task', '')}</td>"
+                f"<td>{item.get('owner') or 'Unassigned'}</td>"
+                f"<td>{item.get('due_date') or 'TBD'}</td>"
+                f"<td>{_status_pill(item.get('status', 'pending'))}</td>"
+                f"</tr>"
+            )
+
+        st.markdown(
+            f"<table class='action-table'>"
+            f"<thead><tr><th>Task</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            f"</table>",
+            unsafe_allow_html=True,
+        )
     else:
         st.info("No action items available for this meeting.")
 
