@@ -1,3 +1,8 @@
+"""ai_service.py — AI extraction with validation.
+
+If the AI cannot extract meaningful content from the transcript,
+ExtractionError is raised BEFORE anything is saved to the database.
+"""
 import os
 import time
 import json
@@ -26,6 +31,75 @@ DEFAULT_PROMPT = (
     "Do not include any explanation outside the JSON object."
 )
 
+# Phrases that indicate the AI refused or got nothing useful.
+# If the summary contains any of these the extraction is considered failed.
+_REFUSAL_PHRASES = [
+    "no meeting transcript",
+    "no transcript provided",
+    "i cannot",
+    "unable to extract",
+    "no content provided",
+    "empty transcript",
+    "please provide",
+    "transcript is empty",
+    "no text provided",
+    "no information provided",
+    "not provided",
+    "cannot extract",
+    "no meeting content",
+]
+
+# Minimum number of words in the summary to be considered a real extraction.
+_MIN_SUMMARY_WORDS = 5
+
+
+class ExtractionError(ValueError):
+    """Raised when the transcript cannot yield a meaningful extraction."""
+    pass
+
+
+def _validate_extraction(structured: Dict[str, Any]) -> None:
+    """Raise ExtractionError if the extraction result is empty or junk.
+
+    This is called BEFORE saving to the database, so no broken records
+    are ever persisted.
+    """
+    summary = (structured.get("summary") or "").strip()
+    decisions = structured.get("decisions") or []
+    action_items = structured.get("action_items") or []
+    risks = structured.get("risks") or []
+    open_questions = structured.get("open_questions") or []
+
+    has_any_content = bool(
+        summary or decisions or action_items or risks or open_questions
+    )
+
+    # 1. Completely empty result
+    if not has_any_content:
+        raise ExtractionError(
+            "No meaningful content could be extracted from the transcript. "
+            "Please upload a valid meeting transcript with discussions, decisions, or action items."
+        )
+
+    # 2. AI returned a refusal / error phrase instead of real content
+    summary_lower = summary.lower()
+    for phrase in _REFUSAL_PHRASES:
+        if phrase in summary_lower:
+            raise ExtractionError(
+                "The transcript does not appear to contain meeting content. "
+                "Please provide an actual meeting transcript."
+            )
+
+    # 3. Summary exists but is suspiciously short (likely just the raw junk text echoed back)
+    #    Only enforce this when there are also no structured items extracted.
+    word_count = len(summary.split())
+    has_structured = bool(decisions or action_items or risks or open_questions)
+    if word_count < _MIN_SUMMARY_WORDS and not has_structured:
+        raise ExtractionError(
+            f"The extracted summary is too short ({word_count} word(s)) to be a real meeting transcript. "
+            "Please provide a more detailed transcript."
+        )
+
 
 def extract_message_content(message: Any) -> str:
     if isinstance(message, dict):
@@ -49,7 +123,11 @@ def extract_message_content(message: Any) -> str:
         if isinstance(reasoning_details, str):
             return reasoning_details
         if isinstance(reasoning_details, list):
-            pieces = [item.get("text") for item in reasoning_details if isinstance(item, dict) and item.get("text")]
+            pieces = [
+                item.get("text")
+                for item in reasoning_details
+                if isinstance(item, dict) and item.get("text")
+            ]
             if pieces:
                 return " ".join(pieces)
     return ""
@@ -113,19 +191,29 @@ def normalize_ai_response(
             "status": str(item.get("status", "pending") or "pending").strip().lower(),
         })
 
-    # IMPORTANT: user-supplied title always wins over anything the AI might have set.
-    # We do NOT fall back to data.get("title") — the caller is responsible for
-    # passing the correct title here.
+    # User-supplied title always wins — never replaced by AI output.
     final_title = (title or "").strip() or "Untitled Meeting"
 
     return {
         "title": final_title,
         "raw_text": raw_text,
         "summary": str(data.get("summary") or "").strip(),
-        "decisions": [str(item).strip() for item in ensure_list(data.get("decisions", [])) if str(item).strip()],
+        "decisions": [
+            str(item).strip()
+            for item in ensure_list(data.get("decisions", []))
+            if str(item).strip()
+        ],
         "action_items": action_items,
-        "risks": [str(item).strip() for item in ensure_list(data.get("risks", [])) if str(item).strip()],
-        "open_questions": [str(item).strip() for item in ensure_list(data.get("open_questions", [])) if str(item).strip()],
+        "risks": [
+            str(item).strip()
+            for item in ensure_list(data.get("risks", []))
+            if str(item).strip()
+        ],
+        "open_questions": [
+            str(item).strip()
+            for item in ensure_list(data.get("open_questions", []))
+            if str(item).strip()
+        ],
     }
 
 
@@ -142,28 +230,46 @@ def build_prompt(raw_text: str, title: Optional[str], preprocessed: Dict[str, An
         "Extract an executive summary, decisions, action items, risks, and open questions. "
         "Return ONLY valid JSON without any surrounding markdown or commentary. "
         "If a field is empty, return an empty list or an empty string as appropriate. "
-        "Do not state that the transcript is missing (for example, do NOT say 'No meeting transcript provided')."
+        "Do not state that the transcript is missing."
     )
 
 
 def extract_structured_meeting(raw_text: str, title: Optional[str] = None) -> Dict[str, Any]:
-    """Extract structured meeting data from raw text.
+    """Extract structured meeting data and validate it has real content.
 
-    The ``title`` argument is the user-supplied title and is ALWAYS preserved
-    in the returned dict — it is never replaced by anything the AI generates.
+    Raises ExtractionError (before any DB write) if the transcript is
+    empty, too short, or the AI cannot produce a meaningful summary.
     """
-    # Short-transcript heuristic
-    if raw_text and len(raw_text.strip()) < 40:
+    # ── Pre-flight: validate raw input ───────────────────────────────────
+    if not raw_text or not raw_text.strip():
+        raise ExtractionError(
+            "The transcript is empty. Please paste your meeting notes or upload a non-empty file."
+        )
+
+    stripped = raw_text.strip()
+    word_count = len(stripped.split())
+
+    if word_count < 10:
+        raise ExtractionError(
+            f"The transcript is too short ({word_count} word(s)). "
+            "A valid meeting transcript should contain at least a few sentences of discussion."
+        )
+
+    # ── Short-transcript heuristic (10–39 chars edge case) ───────────────
+    if len(stripped) < 40:
         pre = preprocess_transcript(raw_text)
         empty_data: Dict[str, Any] = {
-            "summary": raw_text.strip(),
+            "summary": stripped,
             "decisions": [],
             "action_items": [],
             "risks": [],
             "open_questions": [],
         }
-        return normalize_ai_response(empty_data, title, raw_text, pre.get("persons", []))
+        result = normalize_ai_response(empty_data, title, raw_text, pre.get("persons", []))
+        _validate_extraction(result)
+        return result
 
+    # ── Full AI extraction ────────────────────────────────────────────────
     pre = preprocess_transcript(raw_text)
     prompt = build_prompt(raw_text, title, pre)
     raw_response = call_openai_with_retries(prompt)
@@ -174,17 +280,24 @@ def extract_structured_meeting(raw_text: str, title: Optional[str] = None) -> Di
             break
         except Exception as e:
             logging.warning("AI JSON parse failed (attempt %s): %s", attempt + 1, str(e))
-            logging.debug("Raw AI response (truncated): %s", (raw_response or '')[:2000])
+            logging.debug("Raw AI response (truncated): %s", (raw_response or "")[:2000])
             raw_response = call_openai_with_retries(
-                "The previous response was not valid JSON. Return ONLY a valid JSON object with keys: "
+                "The previous response was not valid JSON. "
+                "Return ONLY a valid JSON object with keys: "
                 "summary, decisions, action_items, risks, and open_questions. "
                 "Do not include any surrounding text."
             )
     else:
         truncated = (raw_response or "")[:2000]
-        raise ValueError(
-            f"AI did not return valid JSON. Last raw response (truncated to 2000 chars): {truncated}"
+        raise ExtractionError(
+            "The AI could not produce a structured response for this transcript. "
+            "Please check that your transcript contains clear meeting content and try again. "
+            f"(Debug: last AI response truncated — {truncated})"
         )
 
-    # Always pass the original user-supplied title so normalize_ai_response preserves it.
-    return normalize_ai_response(data, title, raw_text, pre.get("persons", []))
+    result = normalize_ai_response(data, title, raw_text, pre.get("persons", []))
+
+    # ── Post-extraction validation: reject before saving ─────────────────
+    _validate_extraction(result)
+
+    return result
