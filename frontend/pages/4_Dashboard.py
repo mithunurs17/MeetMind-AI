@@ -305,11 +305,6 @@ if filtered_meetings:
                     st.write(f"• {q}")
 
     st.markdown("<br/>", unsafe_allow_html=True)
-    st.download_button(
-        "📥 Export filtered meeting history",
-        json.dumps(filtered_meetings, default=str, indent=2),
-        file_name="filtered_meetings.json",
-        mime="application/json",
-    )
+   
 else:
     st.warning("No meetings match this dashboard filter set.")

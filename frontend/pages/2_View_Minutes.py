@@ -282,15 +282,10 @@ docx_bytes = create_meeting_docx(
 )
 
 st.markdown("---")
-dl1, dl2, dl3, dl4 = st.columns(4)
+dl1, dl2 = st.columns(2)
+
 with dl1:
-    st.download_button("📝 Markdown", markdown_export,
-                       file_name=f"meeting_{selected_meeting.get('id')}_notes.md", mime="text/markdown")
-with dl2:
     st.download_button("📃 DOCX", docx_bytes, file_name=docx_name,
                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-with dl3:
+with dl2:
     st.download_button("📑 PDF", pdf_bytes, file_name=pdf_name, mime="application/pdf")
-with dl4:
-    st.download_button("📄 JSON", json.dumps(export_payload, default=str, indent=2),
-                       file_name=f"meeting_{selected_meeting.get('id')}.json", mime="application/json")

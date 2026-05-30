@@ -1,5 +1,11 @@
 """
 5_Admin.py — User management page (admin only).
+
+What admins can do here:
+  • View all registered users
+  • Promote a regular user to admin (or demote)
+  • Deactivate / reactivate accounts
+  • Delete users
 """
 import streamlit as st
 from utils.api_client import api_client
@@ -7,22 +13,19 @@ from utils.auth import current_user, is_admin, is_logged_in
 
 st.set_page_config(page_title="Admin — Users", page_icon="🛡️", layout="wide")
 
-# ── Sidebar user badge ────────────────────────────────────────────────────
 try:
     from utils.guards import render_user_badge
     render_user_badge()
 except Exception:
     pass
 
-# ── Auth guard ────────────────────────────────────────────────────────────
+# ── Auth guards ───────────────────────────────────────────────────────────
 if not is_logged_in():
-    st.warning("🔐 Please sign in to continue. Use the sidebar to navigate to Sign In.")
+    st.warning("🔐 Please sign in. Use the sidebar to navigate to Sign In.")
     st.stop()
 
-# ── Load profile if missing (e.g. after page refresh) ────────────────────
 user = current_user()
 if user is None:
-    # Try to reload profile from the API
     try:
         from utils.auth import _load_profile
         _load_profile()
@@ -31,15 +34,13 @@ if user is None:
         pass
 
 if not is_admin():
-    # Show helpful message with current user info for debugging
     st.error("🚫 Admin access required.")
     if user:
         st.info(
-            f"You are logged in as **{user.get('username')}** with role **{user.get('role')}**. "
-            "Only users with the `admin` role can access this page."
+            f"You are signed in as **{user.get('username')}** (role: **{user.get('role')}**). "
+            "Ask an existing admin to promote your account, or sign in as the default admin "
+            "(`admin` / `Admin@12345!`)."
         )
-    else:
-        st.info("Could not load user profile. Please sign out and sign in again.")
     st.stop()
 
 # ── Styles ────────────────────────────────────────────────────────────────
@@ -54,23 +55,45 @@ section[data-testid="stSidebar"]{background:hsl(260,70%,5%)!important;border-rig
 section[data-testid="stSidebar"] *{color:var(--fg)!important}
 h1,h2,h3{color:var(--fg)!important;font-weight:700!important}
 [data-testid="stTextInput"] input,[data-testid="stSelectbox"] div[data-baseweb="select"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;color:var(--fg)!important}
+[data-baseweb="popover"]{background:hsl(260,60%,6%)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important}
+[data-baseweb="option"]{color:var(--fg)!important}
+[data-baseweb="option"]:hover{background:rgba(99,102,241,0.15)!important}
 label{color:var(--sub)!important;font-size:12px!important;font-weight:500!important;text-transform:uppercase!important;letter-spacing:.04em!important}
 .stButton>button{border:1px solid rgba(255,255,255,0.14)!important;border-radius:999px!important;background:rgba(255,255,255,0.06)!important;color:var(--fg)!important;font-weight:500!important;padding:0.6rem 1.3rem!important;font-family:'Geist Sans',sans-serif!important;transition:all .2s!important}
 .stButton>button:hover{background:rgba(99,102,241,0.22)!important;border-color:var(--accent)!important}
 [data-testid="stAlert"]{border-radius:14px!important}
+[data-testid="metric-container"]{background:rgba(255,255,255,0.03)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:16px!important;padding:18px 20px!important}
+[data-testid="stMetricLabel"]{color:var(--sub)!important;font-size:12px!important;text-transform:uppercase!important}
+[data-testid="stMetricValue"]{color:var(--fg)!important;font-weight:700!important}
 hr{border-color:rgba(255,255,255,0.08)!important}
-.user-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 20px;margin-bottom:10px}
 .role-admin{background:rgba(168,85,247,0.15);color:#d8b4fe;border:1px solid rgba(168,85,247,0.3);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;text-transform:uppercase}
 .role-user{background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.28);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;text-transform:uppercase}
 .active-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#86efac;margin-right:6px}
 .inactive-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f87171;margin-right:6px}
+.info-box{background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.22);border-radius:14px;padding:16px 20px;margin-bottom:24px;font-size:13px;color:hsl(40,6%,80%);line-height:1.8}
+.info-box b{color:#a5b4fc}
+.promote-box{background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.22);border-radius:14px;padding:16px 20px;margin-bottom:24px;font-size:13px;color:hsl(40,6%,80%);line-height:1.8}
+.promote-box b{color:#d8b4fe}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("# 🛡️ User Management")
+st.markdown("# 🛡️ Admin Panel — User Management")
 st.markdown(
     "<p style='color:hsl(40,6%,72%);font-size:16px;margin-top:-8px;'>"
     "Manage users, roles, and account status.</p>",
+    unsafe_allow_html=True,
+)
+
+# ── Admin capabilities info box ───────────────────────────────────────────
+st.markdown(
+    "<div class='info-box'>"
+    "<b>What you can do as admin:</b><br/>"
+    "• <b>Promote to admin</b> — change a user's role to <code>admin</code> so they can access this panel<br/>"
+    "• <b>Demote to user</b> — change an admin back to a regular user<br/>"
+    "• <b>Deactivate/reactivate</b> — toggle the Active checkbox to block or restore login<br/>"
+    "• <b>Delete</b> — permanently remove a user and all their meetings<br/>"
+    "• <b>View all meetings</b> — admins see every user's meetings on the Dashboard page"
+    "</div>",
     unsafe_allow_html=True,
 )
 
@@ -84,71 +107,118 @@ users = users_resp if isinstance(users_resp, list) else []
 me = current_user() or {}
 
 # ── Metrics ───────────────────────────────────────────────────────────────
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 c1.metric("Total Users", len(users))
 c2.metric("Admins", sum(1 for u in users if u.get("role") == "admin"))
 c3.metric("Active", sum(1 for u in users if u.get("is_active")))
+c4.metric("Inactive", sum(1 for u in users if not u.get("is_active")))
 
 st.markdown("---")
 
-# ── User list ─────────────────────────────────────────────────────────────
-st.markdown("## 👥 Registered Users")
-for user in users:
+# ── Quick promote panel ───────────────────────────────────────────────────
+st.markdown("## ⚡ Quick Promote to Admin")
+st.markdown(
+    "<div class='promote-box'>"
+    "Select a regular user below and click <b>Promote to Admin</b> to give them full admin access. "
+    "They will be able to manage all users and view all meetings.<br/>"
+    "<span style='color:#f87171;font-size:12px;'>⚠️ Only promote trusted users — admins can delete accounts and data.</span>"
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+regular_users = [u for u in users if u.get("role") == "user" and u["id"] != me.get("id")]
+if regular_users:
+    promote_options = {f"{u['username']} ({u['email']})": u for u in regular_users}
+    pcol1, pcol2 = st.columns([3, 1])
+    with pcol1:
+        selected_promote = st.selectbox(
+            "Select user to promote",
+            list(promote_options.keys()),
+            key="promote_select",
+        )
+    with pcol2:
+        st.markdown("<br/>", unsafe_allow_html=True)
+        if st.button("🛡️ Promote to Admin", key="do_promote"):
+            target = promote_options[selected_promote]
+            result = api_client.update_user(target["id"], {"role": "admin"})
+            if isinstance(result, dict) and "error" in result:
+                st.error(f"Failed: {result['error']}")
+            else:
+                st.success(f"✅ {target['username']} is now an admin!")
+                st.rerun()
+else:
+    st.info("No regular users to promote — all users are already admins.")
+
+st.markdown("---")
+
+# ── Full user list ────────────────────────────────────────────────────────
+st.markdown("## 👥 All Users")
+
+for u in users:
     role_badge = (
         "<span class='role-admin'>admin</span>"
-        if user.get("role") == "admin"
+        if u.get("role") == "admin"
         else "<span class='role-user'>user</span>"
     )
-    active_dot = (
+    active_status = (
         "<span class='active-dot'></span>Active"
-        if user.get("is_active")
+        if u.get("is_active")
         else "<span class='inactive-dot'></span>Inactive"
     )
+    is_self = u["id"] == me.get("id")
+    self_label = " (you)" if is_self else ""
 
-    with st.expander(f"#{user['id']} — {user['username']}  ({user['email']})"):
+    with st.expander(f"#{u['id']} — {u['username']}{self_label}  ·  {u['email']}"):
         col1, col2 = st.columns([2, 1])
+
         with col1:
             st.markdown(
-                f"**Role:** {role_badge} &nbsp;&nbsp; **Status:** {active_dot}",
+                f"**Role:** {role_badge} &nbsp;&nbsp; **Status:** {active_status}",
                 unsafe_allow_html=True,
             )
-            st.markdown(f"**Joined:** {user.get('created_at', 'N/A')}")
+            st.markdown(f"**Joined:** {u.get('created_at', 'N/A')}")
+            if is_self:
+                st.markdown(
+                    "<span style='color:#fcd34d;font-size:12px;'>⚠️ You cannot modify your own account here.</span>",
+                    unsafe_allow_html=True,
+                )
 
         with col2:
-            is_self = user["id"] == me.get("id")
-
             new_role = st.selectbox(
                 "Role",
                 ["user", "admin"],
-                index=0 if user.get("role") == "user" else 1,
-                key=f"role_{user['id']}",
+                index=0 if u.get("role") == "user" else 1,
+                key=f"role_{u['id']}",
                 disabled=is_self,
+                help="Change to 'admin' to grant full access, 'user' to demote.",
             )
             new_active = st.checkbox(
                 "Active",
-                value=user.get("is_active", True),
-                key=f"active_{user['id']}",
+                value=u.get("is_active", True),
+                key=f"active_{u['id']}",
                 disabled=is_self,
+                help="Uncheck to prevent this user from logging in.",
             )
 
-            update_col, del_col = st.columns(2)
-            with update_col:
-                if st.button("Save", key=f"save_{user['id']}", disabled=is_self):
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                if st.button("💾 Save", key=f"save_{u['id']}", disabled=is_self):
                     result = api_client.update_user(
-                        user["id"], {"role": new_role, "is_active": new_active}
+                        u["id"], {"role": new_role, "is_active": new_active}
                     )
                     if isinstance(result, dict) and "error" in result:
                         st.error(result["error"])
                     else:
-                        st.success("Updated!")
+                        action = "promoted to admin" if new_role == "admin" else "updated"
+                        st.success(f"✅ {u['username']} {action}!")
                         st.rerun()
 
-            with del_col:
+            with btn_col2:
                 if not is_self:
-                    if st.button("🗑️ Delete", key=f"del_{user['id']}", type="secondary"):
-                        result = api_client.delete_user(user["id"])
+                    if st.button("🗑️ Delete", key=f"del_{u['id']}", type="secondary"):
+                        result = api_client.delete_user(u["id"])
                         if isinstance(result, dict) and "error" in result:
                             st.error(result["error"])
                         else:
-                            st.success(f"User {user['username']} deleted.")
+                            st.success(f"User {u['username']} deleted.")
                             st.rerun()
