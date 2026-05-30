@@ -1,6 +1,6 @@
 """
 1_Upload_Meeting.py
-All UI is identical to the original. Auth-aware logic:
+Auth-aware logic:
   - Logged-in users  → call /ai/extract  (unlimited)
   - Anonymous users  → call /trial/extract (one free attempt)
   - Trial exhausted  → show sign-up prompt
@@ -15,7 +15,7 @@ from utils.ui import apply_theme
 st.set_page_config(page_title="Upload Meeting", page_icon="📹", layout="wide")
 apply_theme()
 
-# ── CSS (unchanged from original) ─────────────────────────────────────────
+# ── CSS ───────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Geist+Sans:wght@300;400;500;600;700&display=swap');
@@ -25,10 +25,6 @@ html,body,[class*="css"]{font-family:'Geist Sans',sans-serif!important;backgroun
 .stApp{background:var(--bg)!important}
 section[data-testid="stSidebar"]{background:hsl(260,70%,5%)!important;border-right:1px solid rgba(255,255,255,0.06)}
 section[data-testid="stSidebar"] *{color:var(--fg)!important}
-[data-testid="stSidebarCollapseButton"] button,[data-testid="collapsedControl"] button{background:linear-gradient(135deg,#6d28d9,#a855f7)!important;border:none!important;border-radius:50%!important;color:#fff!important;box-shadow:0 4px 14px rgba(168,85,247,0.45)!important}
-[data-testid="stSidebarNavLink"]{border-radius:12px!important}
-[data-testid="stSidebarNavLink"]:hover{background:rgba(168,85,247,0.18)!important}
-[data-testid="stSidebarNavLink"][aria-selected="true"]{background:linear-gradient(135deg,#6d28d9,#a855f7)!important}
 h1{color:var(--fg)!important;font-weight:700!important}
 h2,h3{color:var(--fg)!important;font-weight:600!important}
 [data-testid="stForm"]{background:rgba(255,255,255,0.03)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:20px!important;padding:28px!important;backdrop-filter:blur(14px)!important}
@@ -46,8 +42,16 @@ hr{border-color:rgba(255,255,255,0.08)!important}
 .tips-box{background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.22);border-radius:14px;padding:18px 22px;margin-top:24px}
 .trial-banner{background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(168,85,247,0.08));border:1px solid rgba(99,102,241,0.28);border-radius:16px;padding:18px 24px;margin-bottom:20px}
 .trial-used{background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:16px;padding:18px 24px;margin-bottom:20px}
+.login-prompt{background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:16px;padding:20px 24px;margin-bottom:20px;text-align:center}
 </style>
 """, unsafe_allow_html=True)
+
+# ── Sidebar user badge ────────────────────────────────────────────────────
+try:
+    from utils.guards import render_user_badge
+    render_user_badge()
+except Exception:
+    pass
 
 # ── Header ────────────────────────────────────────────────────────────────
 st.markdown("# 📹 Upload Meeting")
@@ -58,7 +62,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Trial / auth state ────────────────────────────────────────────────────
+# ── Auth / trial state ────────────────────────────────────────────────────
 logged_in = is_logged_in()
 trial_used = False
 
@@ -72,13 +76,17 @@ if not logged_in:
             "<b style='font-size:15px;color:#fcd34d;'>⚠️ Free trial used</b><br/>"
             "<span style='color:hsl(40,6%,75%);font-size:14px;'>"
             "You've already used your one free extraction. "
-            "Create a free account to get unlimited access.</span>"
+            "Create a free account or sign in to get unlimited access.</span>"
             "</div>",
             unsafe_allow_html=True,
         )
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.page_link("pages/0_Login.py", label="🔐 Sign In / Register", use_container_width=True)
+        st.markdown(
+            "<div class='login-prompt'>"
+            "<b style='color:var(--fg);'>Sign in or register to continue</b><br/>"
+            "<span style='color:hsl(40,6%,65%);font-size:13px;'>Use the sidebar to navigate to the Sign In page.</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
         st.stop()
     else:
         st.markdown(
@@ -108,7 +116,7 @@ with st.form(key="meeting_form"):
         st.markdown("### Upload an optional file")
         uploaded_file = st.file_uploader(
             "Upload transcript or document",
-            type=SUPPORTED_FILE_TYPES if logged_in else [],   # file upload needs account
+            type=SUPPORTED_FILE_TYPES if logged_in else [],
             help="Supported formats: txt, pdf, docx",
             disabled=not logged_in,
         )
@@ -125,15 +133,21 @@ with st.form(key="meeting_form"):
     submit = st.form_submit_button(label="✨ Generate Meeting Minutes")
 
 
-# ── Results renderer (unchanged) ──────────────────────────────────────────
+# ── Results renderer ──────────────────────────────────────────────────────
 def _render_results(result: dict, meeting_title: str) -> None:
+    if not result:
+        st.error("No response received from the server. Please try again.")
+        return
+
     if result.get("error") or result.get("detail"):
         err = result.get("error") or result.get("detail")
-        if "trial already used" in str(err).lower() or "free trial" in str(err).lower():
+        err_str = str(err).lower()
+        if "trial already used" in err_str or "free trial" in err_str:
             st.warning(
-                "⚠️ Free trial already used. "
-                "[Sign in or register](pages/0_Login.py) to continue."
+                "⚠️ Free trial already used. Please sign in or register to continue."
             )
+        elif "401" in err_str or "not authenticated" in err_str:
+            st.error("🔐 Session expired. Please sign in again via the sidebar.")
         else:
             st.error(f"Unable to extract meeting minutes: {err}")
         return
@@ -199,17 +213,16 @@ def _render_results(result: dict, meeting_title: str) -> None:
     else:
         st.info("No open questions were extracted.")
 
-    # If trial user just used their free slot, prompt to register
     if not logged_in:
         st.markdown(
             "<div class='trial-used' style='margin-top:24px;'>"
             "<b style='color:#fcd34d;'>🎉 Trial extraction complete!</b><br/>"
             "<span style='color:hsl(40,6%,75%);font-size:14px;'>"
-            "Create a free account to save your meetings and get unlimited extractions.</span>"
+            "Create a free account to save your meetings and get unlimited extractions. "
+            "Use the sidebar to navigate to Sign In.</span>"
             "</div>",
             unsafe_allow_html=True,
         )
-        st.page_link("pages/0_Login.py", label="🔐 Create Free Account", use_container_width=False)
 
     export_payload = {
         "title": meeting_title, "summary": editable_summary,
@@ -263,7 +276,6 @@ if submit:
                 result = api_client.extract_meeting_from_file(meeting_title, uploaded_file)
             _render_results(result, meeting_title)
     else:
-        # Text-based extraction — use trial endpoint for anonymous users
         with st.spinner("✨ Generating structured meeting minutes..."):
             if logged_in:
                 result = api_client.extract_meeting_from_text(meeting_title, raw_text)
@@ -271,7 +283,7 @@ if submit:
                 result = api_client.trial_extract(meeting_title, raw_text)
         _render_results(result, meeting_title)
 
-# ── Tips (unchanged) ──────────────────────────────────────────────────────
+# ── Tips ──────────────────────────────────────────────────────────────────
 st.markdown(
     "<div class='tips-box'>"
     "<b style='font-size:15px;'>💡 Tips for better AI extraction</b><br/><br/>"
