@@ -9,6 +9,23 @@ import requests
 API_URL = os.getenv("API_URL", "http://backend:8000")
 
 
+def _parse_json(resp: requests.Response) -> Any:
+    """Safely parse JSON; return dict with error key on failure."""
+    text = resp.text.strip()
+    if not text:
+        return {"error": f"Empty response (HTTP {resp.status_code})"}
+    try:
+        return resp.json()
+    except Exception:
+        return {"error": f"Invalid JSON response: {text[:200]}"}
+
+
+def _detail(payload: Any, resp: requests.Response) -> str:
+    if isinstance(payload, dict):
+        return payload.get("detail") or payload.get("error") or resp.text
+    return resp.text
+
+
 class APIClient:
     """All backend calls go through here so auth headers are always injected."""
 
@@ -26,20 +43,26 @@ class APIClient:
     def health_check(self) -> dict:
         try:
             resp = requests.get(f"{self.base_url}/health", timeout=5)
-            return resp.json()
+            return _parse_json(resp)
         except Exception as exc:
             return {"status": "error", "message": str(exc)}
 
     def get_meetings(self, skip: int = 0, limit: int = 20) -> Any:
         try:
+            headers = self._headers()
+            if not headers:
+                # Not logged in — return empty list so pages show graceful state
+                return []
             resp = requests.get(
                 f"{self.base_url}/meetings",
                 params={"skip": skip, "limit": limit},
-                headers=self._headers(),
+                headers=headers,
                 timeout=15,
             )
-            payload = resp.json()
-            return payload if resp.ok else {"error": _detail(payload, resp)}
+            payload = _parse_json(resp)
+            if resp.ok:
+                return payload if isinstance(payload, list) else []
+            return {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
 
@@ -51,7 +74,7 @@ class APIClient:
                 headers=self._headers(),
                 timeout=120,
             )
-            payload = resp.json()
+            payload = _parse_json(resp)
             return payload if resp.ok else {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
@@ -72,7 +95,7 @@ class APIClient:
                 headers=self._headers(),
                 timeout=180,
             )
-            payload = resp.json()
+            payload = _parse_json(resp)
             return payload if resp.ok else {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
@@ -85,7 +108,7 @@ class APIClient:
                 headers=self._headers(),
                 timeout=15,
             )
-            payload = resp.json()
+            payload = _parse_json(resp)
             return payload if resp.ok else {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
@@ -97,7 +120,7 @@ class APIClient:
                 headers=self._headers(),
                 timeout=10,
             )
-            payload = resp.json()
+            payload = _parse_json(resp)
             return payload if resp.ok else {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
@@ -110,7 +133,7 @@ class APIClient:
                 headers=self._headers(),
                 timeout=10,
             )
-            payload = resp.json()
+            payload = _parse_json(resp)
             return payload if resp.ok else {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
@@ -122,7 +145,7 @@ class APIClient:
                 headers=self._headers(),
                 timeout=10,
             )
-            payload = resp.json()
+            payload = _parse_json(resp)
             return payload if resp.ok else {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
@@ -130,9 +153,11 @@ class APIClient:
     def trial_status(self) -> dict:
         try:
             resp = requests.get(f"{self.base_url}/trial/status", timeout=10)
-            return resp.json() if resp.ok else {"error": resp.text}
-        except Exception as exc:
-            return {"error": str(exc)}
+            if resp.ok:
+                return _parse_json(resp)
+            return {"trial_used": False}
+        except Exception:
+            return {"trial_used": False}
 
     def trial_extract(self, title: str, raw_text: str) -> dict:
         try:
@@ -141,16 +166,10 @@ class APIClient:
                 json={"title": title, "raw_text": raw_text},
                 timeout=120,
             )
-            payload = resp.json()
+            payload = _parse_json(resp)
             return payload if resp.ok else {"error": _detail(payload, resp)}
         except Exception as exc:
             return {"error": str(exc)}
-
-
-def _detail(payload: Any, resp) -> str:
-    if isinstance(payload, dict):
-        return payload.get("detail") or payload.get("error") or resp.text
-    return resp.text
 
 
 api_client = APIClient()
