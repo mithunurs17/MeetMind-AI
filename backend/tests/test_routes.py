@@ -1,3 +1,8 @@
+def _admin_headers(client):
+    """Get auth headers for the seeded admin user."""
+    r = client.post("/auth/login", json={"username": "admin", "password": "Admin@12345!"})
+    assert r.status_code == 200, f"Admin login failed: {r.text}"
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
 def test_root(client):
@@ -13,42 +18,45 @@ def test_health(client):
 
 
 def test_generate_and_read_meeting(client):
+    headers = _admin_headers(client)
     payload = {
         "title": "Endpoint Test Meeting",
         "raw_text": "Review project requirements and next steps.",
         "summary": "A short summary of the endpoint test."
     }
-    response = client.post("/generate", json=payload)
+    response = client.post("/generate", json=payload, headers=headers)
     assert response.status_code == 201
     data = response.json()
     assert data["title"] == payload["title"]
     assert data["raw_text"] == payload["raw_text"]
 
     meeting_id = data["id"]
-    get_response = client.get(f"/meeting/{meeting_id}")
+    get_response = client.get(f"/meeting/{meeting_id}", headers=headers)
     assert get_response.status_code == 200
     assert get_response.json()["id"] == meeting_id
 
 
 def test_delete_meeting_route(client):
+    headers = _admin_headers(client)
     payload = {
         "title": "Delete Route Meeting",
         "raw_text": "Meeting to delete via route.",
         "summary": "Delete route summary."
     }
-    response = client.post("/generate", json=payload)
+    response = client.post("/generate", json=payload, headers=headers)
     assert response.status_code == 201
 
     meeting_id = response.json()["id"]
-    delete_response = client.delete(f"/meeting/{meeting_id}")
+    delete_response = client.delete(f"/meeting/{meeting_id}", headers=headers)
     assert delete_response.status_code == 200
     assert delete_response.json()["detail"] == "Meeting deleted successfully"
 
-    missing_response = client.get(f"/meeting/{meeting_id}")
+    missing_response = client.get(f"/meeting/{meeting_id}", headers=headers)
     assert missing_response.status_code == 404
 
 
 def test_update_action_item_route(client):
+    headers = _admin_headers(client)
     payload = {
         "title": "Action Item Update Meeting",
         "raw_text": "Meeting with an action item to update.",
@@ -57,13 +65,15 @@ def test_update_action_item_route(client):
             {"task": "Send summary email", "owner": "Sam", "status": "pending"}
         ]
     }
-    create_response = client.post("/generate", json=payload)
+    create_response = client.post("/generate", json=payload, headers=headers)
     assert create_response.status_code == 201
     meeting_data = create_response.json()
     assert meeting_data["action_items"]
 
     action_item = meeting_data["action_items"][0]
     update_data = {"status": "completed"}
-    update_response = client.put(f"/action-item/{action_item['id']}", json=update_data)
+    update_response = client.put(
+        f"/action-item/{action_item['id']}", json=update_data, headers=headers
+    )
     assert update_response.status_code == 200
     assert update_response.json()["status"] == "completed"
