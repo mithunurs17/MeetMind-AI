@@ -64,7 +64,15 @@ def get_auth_headers() -> dict:
 
 
 def is_logged_in() -> bool:
-    return bool(st.session_state.get(_KEY_ACCESS)) and _refresh_if_needed()
+    """Check if user is logged in without triggering a rerun."""
+    access = st.session_state.get(_KEY_ACCESS, "")
+    if not access:
+        return False
+    expires = st.session_state.get(_KEY_EXPIRES, 0)
+    if time.time() < expires:
+        return True
+    # Try to refresh
+    return _refresh_if_needed()
 
 
 def current_user() -> Optional[dict]:
@@ -94,7 +102,10 @@ def login(username: str, password: str) -> tuple[bool, str]:
             _save_tokens(data["access_token"], data["refresh_token"], data["expires_in"])
             _load_profile()
             return True, ""
-        detail = resp.json().get("detail", "Login failed")
+        try:
+            detail = resp.json().get("detail", "Login failed")
+        except Exception:
+            detail = "Login failed"
         return False, detail
     except Exception as exc:
         return False, str(exc)
@@ -110,7 +121,10 @@ def register(email: str, username: str, password: str) -> tuple[bool, str]:
         )
         if resp.ok:
             return True, ""
-        detail = resp.json().get("detail", "Registration failed")
+        try:
+            detail = resp.json().get("detail", "Registration failed")
+        except Exception:
+            detail = "Registration failed"
         return False, detail
     except Exception as exc:
         return False, str(exc)
