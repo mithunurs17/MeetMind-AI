@@ -7,13 +7,39 @@ from utils.auth import current_user, is_admin, is_logged_in
 
 st.set_page_config(page_title="Admin — Users", page_icon="🛡️", layout="wide")
 
+# ── Sidebar user badge ────────────────────────────────────────────────────
+try:
+    from utils.guards import render_user_badge
+    render_user_badge()
+except Exception:
+    pass
+
 # ── Auth guard ────────────────────────────────────────────────────────────
 if not is_logged_in():
-    st.warning("Please sign in to continue.")
-    st.switch_page("pages/0_Login.py")
+    st.warning("🔐 Please sign in to continue. Use the sidebar to navigate to Sign In.")
+    st.stop()
+
+# ── Load profile if missing (e.g. after page refresh) ────────────────────
+user = current_user()
+if user is None:
+    # Try to reload profile from the API
+    try:
+        from utils.auth import _load_profile
+        _load_profile()
+        user = current_user()
+    except Exception:
+        pass
 
 if not is_admin():
+    # Show helpful message with current user info for debugging
     st.error("🚫 Admin access required.")
+    if user:
+        st.info(
+            f"You are logged in as **{user.get('username')}** with role **{user.get('role')}**. "
+            "Only users with the `admin` role can access this page."
+        )
+    else:
+        st.info("Could not load user profile. Please sign out and sign in again.")
     st.stop()
 
 # ── Styles ────────────────────────────────────────────────────────────────
@@ -54,7 +80,7 @@ if isinstance(users_resp, dict) and "error" in users_resp:
     st.error(f"Failed to load users: {users_resp['error']}")
     st.stop()
 
-users = users_resp or []
+users = users_resp if isinstance(users_resp, list) else []
 me = current_user() or {}
 
 # ── Metrics ───────────────────────────────────────────────────────────────
@@ -89,7 +115,6 @@ for user in users:
             st.markdown(f"**Joined:** {user.get('created_at', 'N/A')}")
 
         with col2:
-            # Don't let admin deactivate themselves
             is_self = user["id"] == me.get("id")
 
             new_role = st.selectbox(
@@ -112,7 +137,7 @@ for user in users:
                     result = api_client.update_user(
                         user["id"], {"role": new_role, "is_active": new_active}
                     )
-                    if "error" in result:
+                    if isinstance(result, dict) and "error" in result:
                         st.error(result["error"])
                     else:
                         st.success("Updated!")
@@ -122,7 +147,7 @@ for user in users:
                 if not is_self:
                     if st.button("🗑️ Delete", key=f"del_{user['id']}", type="secondary"):
                         result = api_client.delete_user(user["id"])
-                        if "error" in result:
+                        if isinstance(result, dict) and "error" in result:
                             st.error(result["error"])
                         else:
                             st.success(f"User {user['username']} deleted.")
