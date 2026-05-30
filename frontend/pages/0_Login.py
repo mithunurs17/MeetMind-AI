@@ -8,9 +8,14 @@ from utils.auth import is_logged_in, login, register
 
 st.set_page_config(page_title="MeetMind AI — Sign In", page_icon="🔐", layout="centered")
 
-# ── If already authenticated, redirect to home ────────────────────────────
+# ── If already authenticated, show a redirect message instead of crashing ──
 if is_logged_in():
-    st.switch_page("app.py")
+    st.success("✅ You are already signed in!")
+    st.markdown(
+        "<p style='color:hsl(40,6%,72%);'>Use the sidebar to navigate to any page.</p>",
+        unsafe_allow_html=True,
+    )
+    st.stop()
 
 # ── Styles ────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -64,37 +69,6 @@ html, body, [class*="css"] {
   margin-bottom: 32px;
 }
 
-/* Tab pills */
-.tab-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 28px;
-  background: rgba(255,255,255,0.04);
-  border-radius: 14px;
-  padding: 4px;
-}
-.tab-btn {
-  flex: 1;
-  border: none;
-  border-radius: 10px;
-  padding: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Geist Sans', sans-serif;
-  transition: all .2s;
-}
-.tab-active {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(99,102,241,0.35);
-}
-.tab-inactive {
-  background: transparent;
-  color: var(--sub);
-}
-
-/* Inputs */
 [data-testid="stTextInput"] input {
   background: rgba(255,255,255,0.06) !important;
   border: 1px solid rgba(255,255,255,0.12) !important;
@@ -116,7 +90,6 @@ label {
   text-transform: uppercase !important;
 }
 
-/* Submit button */
 .stButton > button {
   width: 100% !important;
   background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
@@ -162,13 +135,13 @@ with col:
 
     tab_col1, tab_col2 = st.columns(2)
     with tab_col1:
-        login_cls = "tab-active" if st.session_state.auth_tab == "login" else "tab-inactive"
         if st.button("Sign In", key="tab_login", use_container_width=True):
             st.session_state.auth_tab = "login"
+            st.rerun()
     with tab_col2:
-        reg_cls = "tab-active" if st.session_state.auth_tab == "register" else "tab-inactive"
         if st.button("Register", key="tab_reg", use_container_width=True):
             st.session_state.auth_tab = "register"
+            st.rerun()
 
     st.markdown("---")
 
@@ -186,7 +159,7 @@ with col:
                 with st.spinner("Authenticating…"):
                     ok, err = login(username, password)
                 if ok:
-                    st.success("Welcome back! Redirecting…")
+                    st.success("✅ Welcome back! You are now signed in. Use the sidebar to navigate.")
                     st.rerun()
                 else:
                     st.error(f"Login failed: {err}")
@@ -213,7 +186,7 @@ with col:
                 with st.spinner("Creating your account…"):
                     ok, err = register(reg_email, reg_username, reg_password)
                 if ok:
-                    st.success("Account created! You can now sign in.")
+                    st.success("✅ Account created! Please sign in.")
                     st.session_state.auth_tab = "login"
                     st.rerun()
                 else:
