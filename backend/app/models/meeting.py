@@ -1,11 +1,11 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
 
 class Meeting(Base):
-    """Meeting model for storing meeting information."""
+    """Meeting model — now owned by a user."""
 
     __tablename__ = "meetings"
 
@@ -14,6 +14,15 @@ class Meeting(Base):
     raw_text = Column(Text, nullable=False)
     summary = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Owner relationship
+    owner_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,   # nullable so existing rows survive migration
+        index=True,
+    )
+    owner = relationship("User", back_populates="meetings")
 
     action_items = relationship(
         "ActionItem",
