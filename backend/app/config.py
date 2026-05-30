@@ -1,18 +1,15 @@
 """
 config.py — centralised, validated configuration via pydantic-settings.
-
-All sensitive values are read from environment variables.
-A .env file is loaded automatically in development.
 """
 from __future__ import annotations
 
+import json
 import os
-import secrets
 import warnings
 from functools import lru_cache
-from typing import List
+from typing import Any, List
 
-from pydantic import field_validator, model_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,24 +21,22 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Application ───────────────────────────────────────────────────────
     APP_NAME: str = "MeetMind AI"
     APP_VERSION: str = "0.2.0"
     DEBUG: bool = False
 
-    # ── Database ──────────────────────────────────────────────────────────
     DATABASE_URL: str = (
         "postgresql://meetmind_user:meetmind_password@db:5432/meetmind_db"
     )
 
-    # ── JWT / Security ────────────────────────────────────────────────────
     JWT_SECRET_KEY: str = "CHANGE_ME_IN_PRODUCTION"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # ── CORS ──────────────────────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = [
+    # Accepts JSON array, comma-separated string, or a list.
+    # On Render set: CORS_ORIGINS=https://your-frontend.onrender.com
+    CORS_ORIGINS: Any = [
         "http://localhost:8501",
         "http://frontend:8501",
     ]
@@ -49,28 +44,62 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: List[str] = ["*"]
 
-    # ── Rate limiting ─────────────────────────────────────────────────────
     RATE_LIMIT_MAX_REQUESTS: int = 200
     RATE_LIMIT_WINDOW_SECS: int = 60
-    AUTH_RATE_LIMIT_MAX: int = 10      # per window for /auth/login, /auth/register
+    AUTH_RATE_LIMIT_MAX: int = 10
 
-    # ── AI / external ─────────────────────────────────────────────────────
     AI_API_KEY: str = ""
     AI_API_BASE: str = "https://api.groq.com/openai/v1"
     AI_MODEL: str = "openai/gpt-oss-120b"
 
-    # ── Server ────────────────────────────────────────────────────────────
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
 
-    # ── Validators ────────────────────────────────────────────────────────
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> List[str]:
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("["):
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(i).strip() for i in parsed]
+                except json.JSONDecodeError:
+                    pass
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return [str(v)]
+
+    @field_validator("CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")
+    @classmethod
+    def parse_list_fields(cls, v: Any) -> List[str]:
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("["):
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(i).strip() for i in parsed]
+                except json.JSONDecodeError:
+                    pass
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return [str(v)]
+
     @field_validator("JWT_SECRET_KEY")
     @classmethod
     def warn_weak_secret(cls, v: str) -> str:
         if v in ("CHANGE_ME_IN_PRODUCTION", "secret", "password"):
             warnings.warn(
                 "JWT_SECRET_KEY is set to a default/weak value. "
-                "Set a strong random key in production (e.g. `openssl rand -hex 32`).",
+                "Set a strong random key in production.",
                 stacklevel=2,
             )
         return v
@@ -88,7 +117,6 @@ def get_settings() -> Settings:
     return Settings()
 
 
-# Convenience re-export so existing imports keep working
 _s = get_settings()
 
 DATABASE_URL          = _s.DATABASE_URL
