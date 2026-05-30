@@ -3,6 +3,7 @@ from datetime import datetime, date
 
 import streamlit as st
 from utils.api_client import api_client
+from utils.auth import is_logged_in
 from utils.export import (
     build_export_filename,
     create_meeting_docx,
@@ -10,281 +11,51 @@ from utils.export import (
 )
 from utils.ui import apply_theme
 
-# ── Page config ──────────────────────────────────────────────────────────
 st.set_page_config(page_title="View Minutes", page_icon="📋", layout="wide")
 apply_theme()
 
-# ── Global CSS matching app.py hero theme ────────────────────────────────
+# ── Sidebar user badge ────────────────────────────────────────────────────
+try:
+    from utils.guards import render_user_badge
+    render_user_badge()
+except Exception:
+    pass
+
+# ── Global CSS ────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Geist+Sans:wght@300;400;500;600;700&display=swap');
-
-:root {
-  --bg:      hsl(260, 87%, 3%);
-  --fg:      hsl(40, 6%, 95%);
-  --sub:     hsl(40, 6%, 72%);
-  --accent:  #6366f1;
-  --accent2: #a855f7;
-}
-
-html, body, [class*="css"] {
-  font-family: 'Geist Sans', sans-serif !important;
-  background: var(--bg) !important;
-  color: var(--fg) !important;
-}
-
-#MainMenu, footer, header { visibility: hidden; }
-
-.stApp { background: var(--bg) !important; }
-
-section[data-testid="stSidebar"] {
-  background: hsl(260, 70%, 5%) !important;
-  border-right: 1px solid rgba(255,255,255,0.06);
-}
-section[data-testid="stSidebar"] * { color: var(--fg) !important; }
-
-/* Sidebar collapse / close button — override Streamlit's red/orange */
-[data-testid="stSidebarCollapseButton"] button,
-[data-testid="stSidebarCollapseButton"] > button,
-button[kind="header"],
-[data-testid="collapsedControl"] button {
-  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
-  border: none !important;
-  border-radius: 50% !important;
-  color: #fff !important;
-  box-shadow: 0 4px 14px rgba(168,85,247,0.45) !important;
-  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
-}
-[data-testid="stSidebarCollapseButton"] button:hover,
-[data-testid="collapsedControl"] button:hover {
-  background: linear-gradient(135deg, #7c3aed, #c084fc) !important;
-  box-shadow: 0 6px 20px rgba(168,85,247,0.55) !important;
-  transform: scale(1.08) !important;
-}
-[data-testid="stSidebarCollapseButton"] button svg,
-[data-testid="collapsedControl"] button svg {
-  fill: #fff !important;
-  color: #fff !important;
-}
-
-/* Sidebar nav links — purple, kill the orange active state */
-[data-testid="stSidebarNavLink"] {
-  border-radius: 12px !important;
-  transition: background 0.2s ease !important;
-}
-[data-testid="stSidebarNavLink"]:hover {
-  background: rgba(168,85,247,0.18) !important;
-}
-[data-testid="stSidebarNavLink"][aria-selected="true"],
-[data-testid="stSidebarNavLink"]:focus {
-  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
-  box-shadow: 0 4px 18px rgba(168,85,247,0.32) !important;
-}
-[data-testid="stSidebarNavLink"][aria-selected="true"] span,
-[data-testid="stSidebarNavLink"][aria-selected="true"] p {
-  color: #fff !important;
-}
-[data-testid="stSidebarNavLink"]::before {
-  background: transparent !important;
-  display: none !important;
-}
-[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-selected="true"]::after,
-[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-selected="true"]::before {
-  display: none !important;
-  background: transparent !important;
-}
-
-h1 { color: var(--fg) !important; font-weight: 700 !important; }
-h2, h3 { color: var(--fg) !important; font-weight: 600 !important; }
-
-/* Inputs */
-[data-testid="stTextInput"] input,
-[data-testid="stTextArea"] textarea,
-[data-testid="stSelectbox"] div[data-baseweb="select"],
-[data-testid="stDateInput"] input {
-  background: rgba(255,255,255,0.05) !important;
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  border-radius: 12px !important;
-  color: var(--fg) !important;
-  font-family: 'Geist Sans', sans-serif !important;
-}
-[data-testid="stTextInput"] input:focus,
-[data-testid="stTextArea"] textarea:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.18) !important;
-}
-
-/* Selectbox dropdown */
-[data-baseweb="popover"] {
-  background: hsl(260, 60%, 6%) !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  border-radius: 12px !important;
-}
-[data-baseweb="option"] { color: var(--fg) !important; }
-[data-baseweb="option"]:hover { background: rgba(99,102,241,0.15) !important; }
-
-/* Labels */
-label {
-  color: var(--sub) !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  letter-spacing: .04em !important;
-  text-transform: uppercase !important;
-}
-
-/* Buttons */
-.stButton > button,
-.stDownloadButton > button {
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  border-radius: 999px !important;
-  background: rgba(255,255,255,0.06) !important;
-  color: var(--fg) !important;
-  font-weight: 500 !important;
-  padding: 0.6rem 1.2rem !important;
-  font-family: 'Geist Sans', sans-serif !important;
-  transition: background 0.2s ease, transform 0.2s ease !important;
-}
-.stButton > button:hover,
-.stDownloadButton > button:hover {
-  background: rgba(99,102,241,0.22) !important;
-  border-color: var(--accent) !important;
-  transform: scale(1.02) !important;
-}
-
-/* Table — full visibility */
-[data-testid="stTable"],
-[data-testid="stTable"] * {
-  color: var(--fg) !important;
-}
-[data-testid="stTable"] table {
-  background: rgba(255,255,255,0.02) !important;
-  border-collapse: collapse !important;
-  width: 100% !important;
-  border-radius: 12px !important;
-  overflow: hidden !important;
-}
-[data-testid="stTable"] thead tr {
-  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.18)) !important;
-}
-[data-testid="stTable"] th {
-  color: #e0e7ff !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  letter-spacing: .08em !important;
-  text-transform: uppercase !important;
-  padding: 12px 16px !important;
-  border: none !important;
-  white-space: nowrap !important;
-}
-[data-testid="stTable"] td {
-  background: transparent !important;
-  color: hsl(40,6%,90%) !important;
-  font-size: 13px !important;
-  border-top: 1px solid rgba(255,255,255,0.07) !important;
-  padding: 11px 16px !important;
-}
-[data-testid="stTable"] tr:hover td {
-  background: rgba(99,102,241,0.08) !important;
-  color: #fff !important;
-}
-
-/* Custom action items table */
-.action-table {
-  width: 100%;
-  border-collapse: collapse;
-  border-radius: 14px;
-  overflow: hidden;
-  font-family: 'Geist Sans', sans-serif;
-}
-.action-table thead tr {
-  background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.2));
-}
-.action-table th {
-  color: #e0e7ff;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  padding: 12px 14px;
-  text-align: left;
-  border: none;
-  white-space: nowrap;
-}
-.action-table td {
-  color: hsl(40,6%,88%);
-  font-size: 13px;
-  padding: 11px 14px;
-  border-top: 1px solid rgba(255,255,255,0.07);
-  vertical-align: top;
-}
-.action-table tbody tr {
-  background: rgba(255,255,255,0.02);
-  transition: background 0.15s;
-}
-.action-table tbody tr:hover {
-  background: rgba(99,102,241,0.1);
-}
-.action-table tbody tr:hover td {
-  color: #fff;
-}
-.status-pill {
-  display: inline-block;
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.status-pending   { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
-.status-progress  { background: rgba(99,102,241,0.15);  color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
-.status-completed { background: rgba(34,197,94,0.12);   color: #86efac; border: 1px solid rgba(34,197,94,0.25); }
-
-hr { border-color: rgba(255,255,255,0.08) !important; }
-
-[data-testid="stAlert"] {
-  border-radius: 14px !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  background: rgba(255,255,255,0.04) !important;
-}
-
-/* Utility cards */
-.glass-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(14px);
-  border-radius: 20px;
-  padding: 24px 28px;
-  margin-bottom: 16px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-}
-.glass-row {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 12px;
-  padding: 12px 18px;
-  margin-bottom: 8px;
-}
-.meta-pill {
-  display: inline-block;
-  background: rgba(99,102,241,0.12);
-  border: 1px solid rgba(99,102,241,0.25);
-  border-radius: 999px;
-  padding: 3px 12px;
-  font-size: 12px;
-  color: #a5b4fc;
-  margin-right: 8px;
-}
-
-/* Search header section */
-.filter-header {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 18px;
-  padding: 20px 24px;
-  margin-bottom: 24px;
-}
+:root{--bg:hsl(260,87%,3%);--fg:hsl(40,6%,95%);--sub:hsl(40,6%,72%);--accent:#6366f1;--accent2:#a855f7}
+html,body,[class*="css"]{font-family:'Geist Sans',sans-serif!important;background:var(--bg)!important;color:var(--fg)!important}
+#MainMenu,footer,header{visibility:hidden}
+.stApp{background:var(--bg)!important}
+section[data-testid="stSidebar"]{background:hsl(260,70%,5%)!important;border-right:1px solid rgba(255,255,255,0.06)}
+section[data-testid="stSidebar"] *{color:var(--fg)!important}
+h1{color:var(--fg)!important;font-weight:700!important}
+h2,h3{color:var(--fg)!important;font-weight:600!important}
+[data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea,[data-testid="stSelectbox"] div[data-baseweb="select"],[data-testid="stDateInput"] input{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;color:var(--fg)!important;font-family:'Geist Sans',sans-serif!important}
+label{color:var(--sub)!important;font-size:12px!important;font-weight:500!important;letter-spacing:.04em!important;text-transform:uppercase!important}
+[data-baseweb="popover"]{background:hsl(260,60%,6%)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important}
+[data-baseweb="option"]{color:var(--fg)!important}
+[data-baseweb="option"]:hover{background:rgba(99,102,241,0.15)!important}
+.stButton>button,.stDownloadButton>button{border:1px solid rgba(255,255,255,0.14)!important;border-radius:999px!important;background:rgba(255,255,255,0.06)!important;color:var(--fg)!important;font-weight:500!important;padding:0.6rem 1.2rem!important;font-family:'Geist Sans',sans-serif!important;transition:all .2s!important}
+.stButton>button:hover,.stDownloadButton>button:hover{background:rgba(99,102,241,0.22)!important;border-color:var(--accent)!important;transform:scale(1.02)!important}
+hr{border-color:rgba(255,255,255,0.08)!important}
+[data-testid="stAlert"]{border-radius:14px!important;border:1px solid rgba(255,255,255,0.08)!important;background:rgba(255,255,255,0.04)!important}
+.glass-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(14px);border-radius:20px;padding:24px 28px;margin-bottom:16px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+.glass-row{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 18px;margin-bottom:8px}
+.meta-pill{display:inline-block;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);border-radius:999px;padding:3px 12px;font-size:12px;color:#a5b4fc;margin-right:8px}
+.filter-header{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:20px 24px;margin-bottom:24px}
+.action-table{width:100%;border-collapse:collapse;border-radius:14px;overflow:hidden;font-family:'Geist Sans',sans-serif}
+.action-table thead tr{background:linear-gradient(135deg,rgba(99,102,241,0.3),rgba(168,85,247,0.2))}
+.action-table th{color:#e0e7ff;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 14px;text-align:left;border:none;white-space:nowrap}
+.action-table td{color:hsl(40,6%,88%);font-size:13px;padding:11px 14px;border-top:1px solid rgba(255,255,255,0.07);vertical-align:top}
+.action-table tbody tr{background:rgba(255,255,255,0.02);transition:background 0.15s}
+.action-table tbody tr:hover{background:rgba(99,102,241,0.1)}
+.status-pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.status-pending{background:rgba(245,158,11,0.15);color:#fcd34d;border:1px solid rgba(245,158,11,0.3)}
+.status-progress{background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)}
+.status-completed{background:rgba(34,197,94,0.12);color:#86efac;border:1px solid rgba(34,197,94,0.25)}
 </style>
 """, unsafe_allow_html=True)
 
@@ -296,15 +67,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Fetch meetings ───────────────────────────────────────────────────────
-meetings_response = api_client.get_meetings()
-if "error" in meetings_response:
-    st.error(f"Error loading meetings: {meetings_response.get('error')}")
+# ── Auth guard (soft) ─────────────────────────────────────────────────────
+if not is_logged_in():
+    st.info("🔐 Please sign in to view your meeting minutes. Use the sidebar to navigate to Sign In.")
     st.stop()
 
-meetings = meetings_response or []
+# ── Fetch meetings ───────────────────────────────────────────────────────
+meetings_response = api_client.get_meetings()
+if isinstance(meetings_response, dict) and "error" in meetings_response:
+    err = meetings_response.get("error", "")
+    if "401" in str(err) or "not authenticated" in str(err).lower():
+        st.error("🔐 Session expired. Please sign in again via the sidebar.")
+    else:
+        st.error(f"Error loading meetings: {err}")
+    st.stop()
+
+meetings = meetings_response if isinstance(meetings_response, list) else []
 if not meetings:
-    st.info("No meetings found yet. Upload a meeting to begin.")
+    st.info("No meetings found yet. Upload a meeting transcript to get started.")
     st.stop()
 
 # ── Filter data prep ─────────────────────────────────────────────────────
@@ -351,8 +131,9 @@ for meeting in meetings:
     except Exception:
         meeting_date = None
 
-    if date_range and meeting_date and not (date_range[0] <= meeting_date <= date_range[1]):
-        continue
+    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+        if meeting_date and not (date_range[0] <= meeting_date <= date_range[1]):
+            continue
 
     if owner_filter != "All":
         owners_in_meeting = {item.get("owner") for item in meeting.get("action_items", []) if item.get("owner")}
@@ -366,7 +147,7 @@ for meeting in meetings:
             str(meeting.get("summary", "")),
             " ".join([d.get("decision_text", "") for d in meeting.get("decisions", [])]),
             " ".join([a.get("task", "") for a in meeting.get("action_items", [])]),
-            " ".join(meeting.get("open_questions", [])),
+            " ".join(meeting.get("open_questions") or []),
         ]).lower()
         if query not in text_blob:
             continue
@@ -463,7 +244,6 @@ export_payload = {
     "open_questions": [l for l in editable_questions.splitlines() if l.strip()],
 }
 
-# ── Markdown export ──────────────────────────────────────────────────────
 markdown_export = f"# {selected_meeting.get('title')}\n\n## Executive Summary\n{editable_summary}\n\n## Decisions\n"
 for line in export_payload["decisions"]:
     markdown_export += f"- {line}\n"
@@ -481,7 +261,6 @@ markdown_export += "\n## Open Questions\n"
 for question in export_payload["open_questions"]:
     markdown_export += f"- {question}\n"
 
-# ── Export files ─────────────────────────────────────────────────────────
 pdf_name, timestamp = build_export_filename(selected_meeting.get("title", "meeting"), "pdf")
 docx_name, _ = build_export_filename(selected_meeting.get("title", "meeting"), "docx")
 
@@ -502,7 +281,6 @@ docx_bytes = create_meeting_docx(
     filename=docx_name, timestamp=timestamp,
 )
 
-# ── Download row ─────────────────────────────────────────────────────────
 st.markdown("---")
 dl1, dl2, dl3, dl4 = st.columns(4)
 with dl1:
@@ -511,3 +289,8 @@ with dl1:
 with dl2:
     st.download_button("📃 DOCX", docx_bytes, file_name=docx_name,
                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+with dl3:
+    st.download_button("📑 PDF", pdf_bytes, file_name=pdf_name, mime="application/pdf")
+with dl4:
+    st.download_button("📄 JSON", json.dumps(export_payload, default=str, indent=2),
+                       file_name=f"meeting_{selected_meeting.get('id')}.json", mime="application/json")
