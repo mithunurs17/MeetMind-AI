@@ -1,221 +1,53 @@
 import streamlit as st
 from utils.api_client import api_client
+from utils.auth import is_logged_in
 from utils.ui import apply_theme
 
 st.set_page_config(page_title="Action Items", page_icon="✅", layout="wide")
 apply_theme()
 
-# ── Global CSS matching app.py hero theme ────────────────────────────────
+# ── Sidebar user badge ────────────────────────────────────────────────────
+try:
+    from utils.guards import render_user_badge
+    render_user_badge()
+except Exception:
+    pass
+
+# ── Global CSS ────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Geist+Sans:wght@300;400;500;600;700&display=swap');
-
-:root {
-  --bg:      hsl(260, 87%, 3%);
-  --fg:      hsl(40, 6%, 95%);
-  --sub:     hsl(40, 6%, 72%);
-  --accent:  #6366f1;
-  --accent2: #a855f7;
-}
-
-html, body, [class*="css"] {
-  font-family: 'Geist Sans', sans-serif !important;
-  background: var(--bg) !important;
-  color: var(--fg) !important;
-}
-
-#MainMenu, footer, header { visibility: hidden; }
-
-.stApp { background: var(--bg) !important; }
-
-section[data-testid="stSidebar"] {
-  background: hsl(260, 70%, 5%) !important;
-  border-right: 1px solid rgba(255,255,255,0.06);
-}
-section[data-testid="stSidebar"] * { color: var(--fg) !important; }
-
-/* Sidebar collapse / close button — override Streamlit's red/orange */
-[data-testid="stSidebarCollapseButton"] button,
-[data-testid="stSidebarCollapseButton"] > button,
-button[kind="header"],
-[data-testid="collapsedControl"] button {
-  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
-  border: none !important;
-  border-radius: 50% !important;
-  color: #fff !important;
-  box-shadow: 0 4px 14px rgba(168,85,247,0.45) !important;
-  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
-}
-[data-testid="stSidebarCollapseButton"] button:hover,
-[data-testid="collapsedControl"] button:hover {
-  background: linear-gradient(135deg, #7c3aed, #c084fc) !important;
-  box-shadow: 0 6px 20px rgba(168,85,247,0.55) !important;
-  transform: scale(1.08) !important;
-}
-[data-testid="stSidebarCollapseButton"] button svg,
-[data-testid="collapsedControl"] button svg {
-  fill: #fff !important;
-  color: #fff !important;
-}
-
-/* Sidebar nav links — purple, kill the orange active state */
-[data-testid="stSidebarNavLink"] {
-  border-radius: 12px !important;
-  transition: background 0.2s ease !important;
-}
-[data-testid="stSidebarNavLink"]:hover {
-  background: rgba(168,85,247,0.18) !important;
-}
-[data-testid="stSidebarNavLink"][aria-selected="true"],
-[data-testid="stSidebarNavLink"]:focus {
-  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
-  box-shadow: 0 4px 18px rgba(168,85,247,0.32) !important;
-}
-[data-testid="stSidebarNavLink"][aria-selected="true"] span,
-[data-testid="stSidebarNavLink"][aria-selected="true"] p {
-  color: #fff !important;
-}
-[data-testid="stSidebarNavLink"]::before {
-  background: transparent !important;
-  display: none !important;
-}
-[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-selected="true"]::after,
-[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-selected="true"]::before {
-  display: none !important;
-  background: transparent !important;
-}
-
-h1 { color: var(--fg) !important; font-weight: 700 !important; }
-h2, h3 { color: var(--fg) !important; font-weight: 600 !important; }
-
-/* Metrics */
-[data-testid="stMetricLabel"] { color: var(--sub) !important; font-size: 12px !important; text-transform: uppercase !important; letter-spacing: .06em !important; }
-[data-testid="stMetricValue"] { color: var(--fg) !important; font-weight: 700 !important; font-size: 36px !important; }
-[data-testid="metric-container"] {
-  background: rgba(255,255,255,0.03) !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  border-radius: 16px !important;
-  padding: 18px 20px !important;
-}
-
-/* Inputs */
-[data-testid="stTextInput"] input,
-[data-testid="stSelectbox"] div[data-baseweb="select"] {
-  background: rgba(255,255,255,0.05) !important;
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  border-radius: 12px !important;
-  color: var(--fg) !important;
-  font-family: 'Geist Sans', sans-serif !important;
-}
-
-/* Selectbox dropdown */
-[data-baseweb="popover"] {
-  background: hsl(260, 60%, 6%) !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  border-radius: 12px !important;
-}
-[data-baseweb="option"] { color: var(--fg) !important; }
-[data-baseweb="option"]:hover { background: rgba(99,102,241,0.15) !important; }
-
-label {
-  color: var(--sub) !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  letter-spacing: .04em !important;
-  text-transform: uppercase !important;
-}
-
-/* Buttons */
-.stButton > button {
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  border-radius: 999px !important;
-  background: rgba(255,255,255,0.06) !important;
-  color: var(--fg) !important;
-  font-weight: 500 !important;
-  padding: 0.65rem 1.6rem !important;
-  font-family: 'Geist Sans', sans-serif !important;
-  transition: background 0.2s ease, transform 0.2s ease !important;
-}
-.stButton > button:hover {
-  background: rgba(99,102,241,0.22) !important;
-  border-color: var(--accent) !important;
-  transform: scale(1.02) !important;
-}
-
-/* Update button — accent */
-.update-btn .stButton > button {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
-  border: none !important;
-  font-weight: 600 !important;
-}
-.update-btn .stButton > button:hover {
-  background: linear-gradient(135deg, #6366f1, #a855f7) !important;
-}
-
-hr { border-color: rgba(255,255,255,0.08) !important; }
-
-[data-testid="stAlert"] {
-  border-radius: 14px !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  background: rgba(255,255,255,0.04) !important;
-}
-
-/* Action item cards */
-.action-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
-  padding: 16px 20px;
-  margin-bottom: 10px;
-  transition: border-color .2s, transform .2s;
-}
-.action-card:hover {
-  border-color: rgba(99,102,241,0.35);
-  transform: translateX(4px);
-}
-.action-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: hsl(40,6%,95%);
-  margin-bottom: 6px;
-}
-.action-meta {
-  font-size: 13px;
-  color: hsl(40,6%,62%);
-}
-.action-meta b { color: hsl(40,6%,88%); }
-
-/* Status badge */
-.badge {
-  display: inline-block;
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-.badge-pending    { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
-.badge-progress   { background: rgba(99,102,241,0.15);  color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
-.badge-completed  { background: rgba(34,197,94,0.12);   color: #86efac; border: 1px solid rgba(34,197,94,0.25); }
-
-/* Update panel */
-.update-panel {
-  background: rgba(99,102,241,0.06);
-  border: 1px solid rgba(99,102,241,0.18);
-  border-radius: 18px;
-  padding: 24px 28px;
-  margin-top: 8px;
-}
-
-/* Filter bar */
-.filter-bar {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 18px;
-  padding: 20px 24px;
-  margin-bottom: 24px;
-}
+:root{--bg:hsl(260,87%,3%);--fg:hsl(40,6%,95%);--sub:hsl(40,6%,72%);--accent:#6366f1;--accent2:#a855f7}
+html,body,[class*="css"]{font-family:'Geist Sans',sans-serif!important;background:var(--bg)!important;color:var(--fg)!important}
+#MainMenu,footer,header{visibility:hidden}
+.stApp{background:var(--bg)!important}
+section[data-testid="stSidebar"]{background:hsl(260,70%,5%)!important;border-right:1px solid rgba(255,255,255,0.06)}
+section[data-testid="stSidebar"] *{color:var(--fg)!important}
+h1{color:var(--fg)!important;font-weight:700!important}
+h2,h3{color:var(--fg)!important;font-weight:600!important}
+[data-testid="stMetricLabel"]{color:var(--sub)!important;font-size:12px!important;text-transform:uppercase!important;letter-spacing:.06em!important}
+[data-testid="stMetricValue"]{color:var(--fg)!important;font-weight:700!important;font-size:36px!important}
+[data-testid="metric-container"]{background:rgba(255,255,255,0.03)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:16px!important;padding:18px 20px!important}
+[data-testid="stTextInput"] input,[data-testid="stSelectbox"] div[data-baseweb="select"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;color:var(--fg)!important;font-family:'Geist Sans',sans-serif!important}
+[data-baseweb="popover"]{background:hsl(260,60%,6%)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important}
+[data-baseweb="option"]{color:var(--fg)!important}
+[data-baseweb="option"]:hover{background:rgba(99,102,241,0.15)!important}
+label{color:var(--sub)!important;font-size:12px!important;font-weight:500!important;letter-spacing:.04em!important;text-transform:uppercase!important}
+.stButton>button{border:1px solid rgba(255,255,255,0.14)!important;border-radius:999px!important;background:rgba(255,255,255,0.06)!important;color:var(--fg)!important;font-weight:500!important;padding:0.65rem 1.6rem!important;font-family:'Geist Sans',sans-serif!important;transition:all .2s!important}
+.stButton>button:hover{background:rgba(99,102,241,0.22)!important;border-color:var(--accent)!important;transform:scale(1.02)!important}
+hr{border-color:rgba(255,255,255,0.08)!important}
+[data-testid="stAlert"]{border-radius:14px!important;border:1px solid rgba(255,255,255,0.08)!important;background:rgba(255,255,255,0.04)!important}
+.action-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 20px;margin-bottom:10px;transition:border-color .2s,transform .2s}
+.action-card:hover{border-color:rgba(99,102,241,0.35);transform:translateX(4px)}
+.action-title{font-size:15px;font-weight:600;color:hsl(40,6%,95%);margin-bottom:6px}
+.action-meta{font-size:13px;color:hsl(40,6%,62%)}
+.action-meta b{color:hsl(40,6%,88%)}
+.badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.badge-pending{background:rgba(245,158,11,0.15);color:#fcd34d;border:1px solid rgba(245,158,11,0.3)}
+.badge-progress{background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)}
+.badge-completed{background:rgba(34,197,94,0.12);color:#86efac;border:1px solid rgba(34,197,94,0.25)}
+.update-panel{background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.18);border-radius:18px;padding:24px 28px;margin-top:8px}
+.filter-bar{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:20px 24px;margin-bottom:24px}
 </style>
 """, unsafe_allow_html=True)
 
@@ -227,20 +59,28 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ── Auth guard (soft) ─────────────────────────────────────────────────────
+if not is_logged_in():
+    st.info("🔐 Please sign in to view action items. Use the sidebar to navigate to Sign In.")
+    st.stop()
+
 # ── Fetch data ───────────────────────────────────────────────────────────
 meetings_response = api_client.get_meetings()
 all_items = []
 
-if "error" not in meetings_response:
-    meetings = meetings_response or []
-    for meeting in meetings:
+if isinstance(meetings_response, list):
+    for meeting in meetings_response:
         for item in meeting.get("action_items", []):
             record = item.copy()
             record["meeting_title"] = meeting.get("title")
             record["meeting_id"]    = meeting.get("id")
             all_items.append(record)
-else:
-    st.error(f"Error loading meetings: {meetings_response.get('error')}")
+elif isinstance(meetings_response, dict) and "error" in meetings_response:
+    err = meetings_response.get("error", "")
+    if "401" in str(err) or "not authenticated" in str(err).lower():
+        st.error("🔐 Session expired. Please sign in again via the sidebar.")
+    else:
+        st.error(f"Error loading meetings: {err}")
     st.stop()
 
 status_values = sorted({item.get("status", "pending") for item in all_items})
@@ -253,6 +93,10 @@ c2.metric("Pending",   sum(1 for i in all_items if i.get("status") == "pending")
 c3.metric("Completed", sum(1 for i in all_items if i.get("status") == "completed"))
 
 st.markdown("---")
+
+if not all_items:
+    st.info("No action items found. Upload a meeting transcript to extract action items.")
+    st.stop()
 
 # ── Filters ──────────────────────────────────────────────────────────────
 st.markdown("<div class='filter-bar'>", unsafe_allow_html=True)
@@ -304,24 +148,23 @@ st.markdown("## 🔄 Update Action Item Status")
 st.markdown("<div class='update-panel'>", unsafe_allow_html=True)
 
 item_options = {f"{item['id']} — {item['task']}": item for item in all_items}
-selected_key = st.selectbox("Select an action item", list(item_options.keys()))
+if item_options:
+    selected_key = st.selectbox("Select an action item", list(item_options.keys()))
 
-if selected_key:
-    selected_item = item_options[selected_key]
-    current_status = selected_item.get("status", "pending")
-    status_list = ["pending", "in progress", "completed"]
-    idx = status_list.index(current_status) if current_status in status_list else 0
+    if selected_key:
+        selected_item = item_options[selected_key]
+        current_status = selected_item.get("status", "pending")
+        status_list = ["pending", "in progress", "completed"]
+        idx = status_list.index(current_status) if current_status in status_list else 0
 
-    new_status = st.selectbox("New Status", status_list, index=idx)
+        new_status = st.selectbox("New Status", status_list, index=idx)
 
-    st.markdown("<div class='update-btn'>", unsafe_allow_html=True)
-    if st.button("Update Status"):
-        result = api_client.update_action_item_status(selected_item["id"], new_status)
-        if result.get("error"):
-            st.error(f"Error updating action item: {result['error']}")
-        else:
-            st.success("✅ Action item updated successfully.")
-            st.experimental_rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+        if st.button("Update Status"):
+            result = api_client.update_action_item_status(selected_item["id"], new_status)
+            if result.get("error"):
+                st.error(f"Error updating action item: {result['error']}")
+            else:
+                st.success("✅ Action item updated successfully.")
+                st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
