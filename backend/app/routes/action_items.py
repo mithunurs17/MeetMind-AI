@@ -1,3 +1,4 @@
+"""action_items.py — Action item updates with strict ownership enforcement."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -8,6 +9,13 @@ from app.models.user import User, UserRole
 from app.schemas.action_item import ActionItemResponse, ActionItemUpdate
 
 router = APIRouter()
+
+
+def _is_admin(user: User) -> bool:
+    role = user.role
+    if isinstance(role, UserRole):
+        return role == UserRole.ADMIN
+    return str(role).lower() == "admin"
 
 
 @router.put(
@@ -26,9 +34,11 @@ def update_action_item_status(
     if not item:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Action item not found")
 
-    # Enforce ownership
-    if current_user.role != UserRole.ADMIN and item.meeting.owner_id != current_user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not authorised to update this action item")
+    if not _is_admin(current_user):
+        # Verify the action item belongs to a meeting owned by this user
+        if item.meeting.owner_id != current_user.id:
+            # Return 404 to avoid leaking existence of other users' items
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Action item not found")
 
     updated = update_action_item(db, action_item_id, payload)
     if not updated:

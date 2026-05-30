@@ -1,3 +1,8 @@
+"""crud/meeting.py — Meeting database operations.
+
+ALL user-facing queries go through get_meetings_for_user() which enforces
+owner_id scoping at the SQL level.  Admin queries use get_all_meetings().
+"""
 from __future__ import annotations
 
 from typing import Optional
@@ -10,27 +15,68 @@ from app.models.meeting import Meeting
 from app.models.risk import Risk
 from app.schemas.meeting import MeetingCreate
 
+# Shared eager-load options
+_LOAD_OPTS = [
+    selectinload(Meeting.action_items),
+    selectinload(Meeting.decisions),
+    selectinload(Meeting.risks),
+]
+
 
 def get_meeting(db: Session, meeting_id: int) -> Optional[Meeting]:
     return (
         db.query(Meeting)
-        .options(
-            selectinload(Meeting.action_items),
-            selectinload(Meeting.decisions),
-            selectinload(Meeting.risks),
-        )
+        .options(*_LOAD_OPTS)
         .filter(Meeting.id == meeting_id)
         .first()
     )
 
 
-def get_all_meetings(db: Session, skip: int = 0, limit: int = 20) -> list[Meeting]:
+def get_meetings_for_user(
+    db: Session,
+    owner_id: int,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[Meeting]:
+    """Return ONLY meetings owned by owner_id. Never returns NULL-owner rows."""
     return (
         db.query(Meeting)
+        .options(*_LOAD_OPTS)
+        .filter(Meeting.owner_id == owner_id)
         .order_by(Meeting.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
+    )
+
+
+def get_all_meetings(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[Meeting]:
+    """Return all meetings across all users. Admin use only."""
+    return (
+        db.query(Meeting)
+        .options(*_LOAD_OPTS)
+        .order_by(Meeting.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+def get_meeting_for_user(
+    db: Session,
+    meeting_id: int,
+    owner_id: int,
+) -> Optional[Meeting]:
+    """Return a single meeting only if it is owned by owner_id."""
+    return (
+        db.query(Meeting)
+        .options(*_LOAD_OPTS)
+        .filter(Meeting.id == meeting_id, Meeting.owner_id == owner_id)
+        .first()
     )
 
 
@@ -87,8 +133,10 @@ def save_ai_generated(
     generated: dict,
     owner_id: Optional[int] = None,
 ) -> Meeting:
+    title = (generated.get("title") or "").strip() or "Untitled Meeting"
+
     meeting = Meeting(
-        title=generated.get("title") or "AI Generated Meeting",
+        title=title,
         raw_text=generated.get("raw_text") or "",
         summary=generated.get("summary"),
         owner_id=owner_id,

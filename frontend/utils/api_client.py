@@ -48,10 +48,16 @@ class APIClient:
             return {"status": "error", "message": str(exc)}
 
     def get_meetings(self, skip: int = 0, limit: int = 20) -> Any:
+        """Fetch meetings for the currently logged-in user only.
+
+        The backend /meetings endpoint already filters by owner_id when a
+        valid JWT is present, so regular users only ever see their own data.
+        Admins see all meetings — that is intentional backend behaviour.
+        """
         try:
             headers = self._headers()
             if not headers:
-                # Not logged in — return empty list so pages show graceful state
+                # Not logged in — return empty list so pages degrade gracefully.
                 return []
             resp = requests.get(
                 f"{self.base_url}/meetings",
@@ -80,6 +86,11 @@ class APIClient:
             return {"error": str(exc)}
 
     def extract_meeting_from_file(self, title: str, upload_file) -> dict:
+        """Upload a file for AI extraction.
+
+        ``title`` is sent as a multipart form field so the backend's
+        ``title: str = Form(...)`` parameter receives it correctly.
+        """
         try:
             files = {
                 "file": (
@@ -88,9 +99,12 @@ class APIClient:
                     upload_file.type or "application/octet-stream",
                 )
             }
+            # Send title as a form field (multipart), NOT as a query param.
+            data = {"title": title or ""}
+
             resp = requests.post(
                 f"{self.base_url}/ai/extract-file",
-                data={"title": title},
+                data=data,
                 files=files,
                 headers=self._headers(),
                 timeout=180,

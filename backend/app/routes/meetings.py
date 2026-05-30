@@ -1,16 +1,26 @@
-"""
-meetings.py — Meeting CRUD, now owner-scoped.
+"""meetings.py — Meeting CRUD routes with strict per-user data isolation.
 
-- Regular users   : see / delete only their own meetings
-- Admin users     : see / delete ALL meetings
+Data isolation rules (enforced at both route AND crud level):
+  - Regular users : see / modify / delete ONLY their own meetings
+  - Admin users   : see / modify / delete ALL meetings
+  
+The owner_id filter is applied at the SQL level inside the CRUD functions,
+NOT just in Python, so it is impossible for a SQL query to return another
+user's rows to a non-admin caller.
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user, require_admin
-from app.crud.meeting import delete_meeting, get_all_meetings, get_meeting
+from app.core.dependencies import get_current_user
+from app.crud.meeting import (
+    delete_meeting,
+    get_all_meetings,
+    get_meeting,
+    get_meeting_for_user,
+    get_meetings_for_user,
+)
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.meeting import MeetingResponse
@@ -18,33 +28,31 @@ from app.schemas.meeting import MeetingResponse
 router = APIRouter()
 
 
-def _user_meetings(db: Session, user: User, skip: int, limit: int):
-    """Return meetings scoped to the user's role."""
-    from app.models.meeting import Meeting
-
-    q = db.query(Meeting).options(
-        selectinload(Meeting.action_items),
-        selectinload(Meeting.decisions),
-        selectinload(Meeting.risks),
-    )
-    if user.role != UserRole.ADMIN:
-        q = q.filter(Meeting.owner_id == user.id)
-    return q.order_by(Meeting.created_at.desc()).offset(skip).limit(limit).all()
+def _is_admin(user: User) -> bool:
+    """Safe admin check that works whether role is an enum or a plain string."""
+    role = user.role
+    # Handle both enum value and raw string (e.g. after certain ORM loads)
+    if isinstance(role, UserRole):
+        return role == UserRole.ADMIN
+    return str(role).lower() == "admin"
 
 
 @router.get(
     "/meetings",
     response_model=list[MeetingResponse],
     tags=["Meetings"],
-    summary="List meetings (scoped to the authenticated user)",
+    summary="List meetings for the authenticated user (admins see all)",
 )
 def read_meetings(
     skip: int = 0,
-    limit: int = 20,
+    limit: int = 100,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _user_meetings(db, current_user, skip, limit)
+    if _is_admin(current_user):
+        return get_all_meetings(db, skip=skip, limit=limit)
+    # Non-admin: strictly scoped to their own owner_id at the SQL level
+    return get_meetings_for_user(db, owner_id=current_user.id, skip=skip, limit=limit)
 
 
 @router.get(
@@ -57,11 +65,15 @@ def read_meeting(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    meeting = get_meeting(db, meeting_id)
+    if _is_admin(current_user):
+        meeting = get_meeting(db, meeting_id)
+    else:
+        # Use the owner-scoped query — returns None if owner_id doesn't match
+        meeting = get_meeting_for_user(db, meeting_id, owner_id=current_user.id)
+
     if not meeting:
+        # Return 404 for both "not found" and "not yours" — don't leak existence
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Meeting not found")
-    if current_user.role != UserRole.ADMIN and meeting.owner_id != current_user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not authorised to view this meeting")
     return meeting
 
 
@@ -75,10 +87,13 @@ def remove_meeting(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    meeting = get_meeting(db, meeting_id)
+    if _is_admin(current_user):
+        meeting = get_meeting(db, meeting_id)
+    else:
+        meeting = get_meeting_for_user(db, meeting_id, owner_id=current_user.id)
+
     if not meeting:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Meeting not found")
-    if current_user.role != UserRole.ADMIN and meeting.owner_id != current_user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not authorised to delete this meeting")
+
     delete_meeting(db, meeting_id)
     return {"detail": "Meeting deleted successfully"}

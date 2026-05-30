@@ -86,7 +86,12 @@ def extract_json_object(raw_text: str) -> Dict[str, Any]:
     raise ValueError("AI did not return valid JSON")
 
 
-def normalize_ai_response(data: Dict[str, Any], title: str, raw_text: str, persons: List[str]) -> Dict[str, Any]:
+def normalize_ai_response(
+    data: Dict[str, Any],
+    title: str,
+    raw_text: str,
+    persons: List[str],
+) -> Dict[str, Any]:
     def ensure_list(value):
         if value is None:
             return []
@@ -108,8 +113,13 @@ def normalize_ai_response(data: Dict[str, Any], title: str, raw_text: str, perso
             "status": str(item.get("status", "pending") or "pending").strip().lower(),
         })
 
+    # IMPORTANT: user-supplied title always wins over anything the AI might have set.
+    # We do NOT fall back to data.get("title") — the caller is responsible for
+    # passing the correct title here.
+    final_title = (title or "").strip() or "Untitled Meeting"
+
     return {
-        "title": title or "AI Generated Meeting",
+        "title": final_title,
         "raw_text": raw_text,
         "summary": str(data.get("summary") or "").strip(),
         "decisions": [str(item).strip() for item in ensure_list(data.get("decisions", [])) if str(item).strip()],
@@ -137,12 +147,15 @@ def build_prompt(raw_text: str, title: Optional[str], preprocessed: Dict[str, An
 
 
 def extract_structured_meeting(raw_text: str, title: Optional[str] = None) -> Dict[str, Any]:
-    # Short-transcript heuristic: if the transcript is present but very short,
-    # avoid calling the AI and return the raw text as the summary to prevent
-    # models from responding with misleading messages like 'No meeting transcript provided'.
+    """Extract structured meeting data from raw text.
+
+    The ``title`` argument is the user-supplied title and is ALWAYS preserved
+    in the returned dict — it is never replaced by anything the AI generates.
+    """
+    # Short-transcript heuristic
     if raw_text and len(raw_text.strip()) < 40:
         pre = preprocess_transcript(raw_text)
-        empty_data = {
+        empty_data: Dict[str, Any] = {
             "summary": raw_text.strip(),
             "decisions": [],
             "action_items": [],
@@ -154,7 +167,7 @@ def extract_structured_meeting(raw_text: str, title: Optional[str] = None) -> Di
     pre = preprocess_transcript(raw_text)
     prompt = build_prompt(raw_text, title, pre)
     raw_response = call_openai_with_retries(prompt)
-    # Try a small number of reparsing attempts if the model output is not valid JSON.
+
     for attempt in range(2):
         try:
             data = extract_json_object(raw_response)
@@ -162,12 +175,16 @@ def extract_structured_meeting(raw_text: str, title: Optional[str] = None) -> Di
         except Exception as e:
             logging.warning("AI JSON parse failed (attempt %s): %s", attempt + 1, str(e))
             logging.debug("Raw AI response (truncated): %s", (raw_response or '')[:2000])
-            # Ask the model to return only a JSON object and retry
             raw_response = call_openai_with_retries(
-                "The previous response was not valid JSON. Return ONLY a valid JSON object with keys: summary, decisions, action_items, risks, and open_questions. Do not include any surrounding text.")
+                "The previous response was not valid JSON. Return ONLY a valid JSON object with keys: "
+                "summary, decisions, action_items, risks, and open_questions. "
+                "Do not include any surrounding text."
+            )
     else:
-        # Include the last raw response in the exception to aid debugging.
         truncated = (raw_response or "")[:2000]
-        raise ValueError(f"AI did not return valid JSON. Last raw response (truncated to 2000 chars): {truncated}")
+        raise ValueError(
+            f"AI did not return valid JSON. Last raw response (truncated to 2000 chars): {truncated}"
+        )
 
+    # Always pass the original user-supplied title so normalize_ai_response preserves it.
     return normalize_ai_response(data, title, raw_text, pre.get("persons", []))

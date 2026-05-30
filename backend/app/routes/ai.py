@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
@@ -26,7 +26,10 @@ def ai_extract(
     if not transcript.raw_text:
         raise HTTPException(400, "raw_text is required")
     try:
-        structured = extract_structured_meeting(transcript.raw_text, title=transcript.title)
+        structured = extract_structured_meeting(
+            transcript.raw_text,
+            title=transcript.title,
+        )
         saved = save_ai_generated(db, structured, owner_id=current_user.id)
         return saved
     except Exception as exc:
@@ -42,7 +45,9 @@ def ai_extract(
 )
 def ai_extract_file(
     file: UploadFile = File(...),
-    title: str | None = None,
+    # Declare title as an explicit Form field so FastAPI reads it from
+    # the multipart body rather than dropping it.
+    title: str = Form(default=""),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -51,7 +56,11 @@ def ai_extract_file(
         raw_text = extract_text_from_file(file)
         if not raw_text:
             raise HTTPException(400, "Unable to extract text from uploaded file")
-        structured = extract_structured_meeting(raw_text, title=title)
+
+        # Use the caller-supplied title; fall back gracefully if empty.
+        meeting_title = title.strip() if title and title.strip() else None
+
+        structured = extract_structured_meeting(raw_text, title=meeting_title)
         saved = save_ai_generated(db, structured, owner_id=current_user.id)
         return saved
     except HTTPException:
