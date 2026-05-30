@@ -14,125 +14,225 @@ st.set_page_config(
 # ── THEME & INTERFACE STYLING ──────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://googleapis.com');
+@import url('https://fonts.googleapis.com/css2?family=Geist+Sans:wght@300;400;500;600;700&display=swap');
+
 :root {
-    --bg: #0b0a12;
-    --card-bg: #13121f;
-    --border: #222035;
-    --fg: #f5f5f7;
-    --sub: #9897a9;
-    --accent: #6366f1;
-    --accent-gradient: linear-gradient(135deg, #4f46e5, #7c3aed);
+  --bg:       hsl(260, 87%, 3%);
+  --fg:       hsl(40, 6%, 95%);
+  --sub:      hsl(40, 6%, 72%);
+  --accent:   #6366f1;
+  --accent2:  #a855f7;
 }
 
-/* Base resets & layout rules */
 html, body, [class*="css"] {
-    font-family: 'Geist Sans', sans-serif !important;
-    background-color: var(--bg) !important;
-    color: var(--fg) !important;
+  font-family: 'Geist Sans', sans-serif !important;
+  background: var(--bg) !important;
+  color: var(--fg) !important;
 }
+
 #MainMenu, footer, header { visibility: hidden; }
-.stApp { background-color: var(--bg) !important; }
 
-/* Section Header Styling */
-.section-header {
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
-}
-.section-title {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--fg);
-    margin: 0;
-}
-.section-subtitle {
-    font-size: 14px;
-    color: var(--sub);
-    margin: 4px 0 0 0;
-}
+.stApp { background: var(--bg) !important; }
 
-/* Custom Side Control Cards */
-.control-panel {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-    margin-bottom: 20px;
+section[data-testid="stSidebar"] {
+  background: hsl(260, 70%, 5%) !important;
+  border-right: 1px solid rgba(255,255,255,0.06);
 }
-.control-title {
-    font-size: 14px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--sub);
-    margin-bottom: 16px;
+section[data-testid="stSidebar"] * { color: var(--fg) !important; }
+
+/* Sidebar collapse / close button — override Streamlit's red/orange */
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stSidebarCollapseButton"] > button,
+button[kind="header"],
+[data-testid="collapsedControl"] button {
+  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
+  border: none !important;
+  border-radius: 50% !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(168,85,247,0.45) !important;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
+}
+[data-testid="stSidebarCollapseButton"] button:hover,
+[data-testid="collapsedControl"] button:hover {
+  background: linear-gradient(135deg, #7c3aed, #c084fc) !important;
+  box-shadow: 0 6px 20px rgba(168,85,247,0.55) !important;
+  transform: scale(1.08) !important;
+}
+/* Also target via SVG icon color inside the button */
+[data-testid="stSidebarCollapseButton"] button svg,
+[data-testid="collapsedControl"] button svg {
+  fill: #fff !important;
+  color: #fff !important;
 }
 
-/* Forms & Input Overrides */
-[data-testid="stTextInput"] input {
-    background: #1a1829 !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 10px !important;
-    color: var(--fg) !important;
-    font-size: 14px !important;
+/* Sidebar nav links — purple, kill the orange active state */
+[data-testid="stSidebarNavLink"] {
+  border-radius: 12px !important;
+  transition: background 0.2s ease !important;
 }
-[data-testid="stTextInput"] input:focus {
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+[data-testid="stSidebarNavLink"]:hover {
+  background: rgba(168,85,247,0.18) !important;
 }
-label {
-    color: var(--sub) !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+[data-testid="stSidebarNavLink"][aria-selected="true"],
+[data-testid="stSidebarNavLink"]:focus {
+  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
+  box-shadow: 0 4px 18px rgba(168,85,247,0.32) !important;
 }
-
-/* Uniform Dashboard Button Styling */
-.stButton>button {
-    width: 100% !important;
-    background: var(--border) !important;
-    border: 1px solid rgba(255,255,255,0.05) !important;
-    border-radius: 10px !important;
-    color: var(--fg) !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    padding: 0.6rem 1.2rem !important;
-    transition: all .2s ease !important;
+/* Kill Streamlit's orange/red default highlight on active nav items */
+[data-testid="stSidebarNavLink"][aria-selected="true"] span,
+[data-testid="stSidebarNavLink"][aria-selected="true"] p {
+  color: #fff !important;
 }
-.stButton>button:hover {
-    background: #2c2944 !important;
-    border-color: var(--accent) !important;
+/* Override the ::before colored bar Streamlit adds */
+[data-testid="stSidebarNavLink"]::before {
+  background: transparent !important;
+  display: none !important;
 }
-
-/* Primary Action Buttons */
-div.action-btn button {
-    background: var(--accent-gradient) !important;
-    border: none !important;
-    font-weight: 600 !important;
-    color: #ffffff !important;
+/* Also target the inner li active highlight */
+section[data-testid="stSidebar"] li[data-testid="stSidebarNavItems"] > ul > li > a {
+  border-radius: 12px !important;
 }
-div.action-btn button:hover {
-    background: linear-gradient(135deg, #6366f1, #a855f7) !important;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2) !important;
+section[data-testid="stSidebar"] li[data-testid="stSidebarNavItems"] > ul > li > a[aria-selected="true"] {
+  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
+  color: #fff !important;
+}
+/* Nuke the orange active indicator stripe */
+[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-selected="true"]::after,
+[data-testid="stSidebar"] [data-testid="stSidebarNavLink"][aria-selected="true"]::before {
+  display: none !important;
+  background: transparent !important;
 }
 
-/* Clean Info Blocks */
-.info-card {
-    background: rgba(99, 102, 241, 0.04);
-    border: 1px solid rgba(99, 102, 241, 0.15);
-    border-radius: 12px;
-    padding: 16px;
-    font-size: 13px;
-    color: var(--sub);
-    line-height: 1.6;
-}
-.info-card b { color: #a5b4fc; }
+/* Page title */
+h1 { color: var(--fg) !important; font-weight: 700 !important; }
+h2, h3 { color: var(--fg) !important; font-weight: 600 !important; }
 
-ul { margin-left: 20px; padding-left: 0; color: var(--sub); font-size: 13px; }
-li { margin-bottom: 6px; }
-hr { border-color: var(--border) !important; }
+/* Glass form container */
+[data-testid="stForm"] {
+  background: rgba(255,255,255,0.03) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 20px !important;
+  padding: 28px !important;
+  backdrop-filter: blur(14px) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+
+/* Inputs & textareas */
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea {
+  background: rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  border-radius: 12px !important;
+  color: var(--fg) !important;
+  font-family: 'Geist Sans', sans-serif !important;
+}
+[data-testid="stTextInput"] input:focus,
+[data-testid="stTextArea"] textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.18) !important;
+}
+
+/* Labels */
+label, .stTextInput label, .stTextArea label, .stFileUploader label {
+  color: var(--sub) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: .04em !important;
+  text-transform: uppercase !important;
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+  background: rgba(255,255,255,0.03) !important;
+  border: 1px dashed rgba(255,255,255,0.15) !important;
+  border-radius: 14px !important;
+  color: var(--fg) !important;
+}
+
+/* Browse files button — purple gradient */
+[data-testid="stFileUploader"] button,
+[data-testid="stFileUploaderDropzone"] button,
+[data-testid="baseButton-secondary"] {
+  background: linear-gradient(135deg, #6d28d9, #a855f7) !important;
+  border: none !important;
+  border-radius: 999px !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  font-family: 'Geist Sans', sans-serif !important;
+  padding: 0.55rem 1.3rem !important;
+  box-shadow: 0 4px 14px rgba(168,85,247,0.35) !important;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
+}
+[data-testid="stFileUploader"] button:hover,
+[data-testid="stFileUploaderDropzone"] button:hover,
+[data-testid="baseButton-secondary"]:hover {
+  background: linear-gradient(135deg, #7c3aed, #c084fc) !important;
+  box-shadow: 0 6px 20px rgba(168,85,247,0.5) !important;
+  transform: scale(1.03) !important;
+}
+
+/* Buttons */
+.stButton > button,
+.stDownloadButton > button,
+.stFormSubmitButton > button {
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,0.06) !important;
+  color: var(--fg) !important;
+  font-weight: 500 !important;
+  padding: 0.65rem 1.4rem !important;
+  font-family: 'Geist Sans', sans-serif !important;
+  transition: background 0.2s ease, transform 0.2s ease !important;
+}
+.stButton > button:hover,
+.stDownloadButton > button:hover,
+.stFormSubmitButton > button:hover {
+  background: rgba(99,102,241,0.22) !important;
+  border-color: var(--accent) !important;
+  transform: scale(1.02) !important;
+}
+
+/* Submit button — accent pill */
+.stFormSubmitButton > button {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
+  border: none !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  padding: 0.75rem 2rem !important;
+}
+.stFormSubmitButton > button:hover {
+  background: linear-gradient(135deg, #6366f1, #a855f7) !important;
+  transform: scale(1.03) !important;
+}
+
+/* Success / error / info banners */
+[data-testid="stAlert"] {
+  border-radius: 14px !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  background: rgba(255,255,255,0.04) !important;
+}
+
+/* Metrics / result cards */
+[data-testid="stMetricValue"] { color: var(--fg) !important; }
+
+/* Horizontal divider */
+hr { border-color: rgba(255,255,255,0.08) !important; }
+
+/* Markdown helpers */
+.glass-section {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+.tips-box {
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.22);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-top: 24px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -286,4 +386,3 @@ with right_col:
             """,
             unsafe_allow_html=True,
         )
-        
