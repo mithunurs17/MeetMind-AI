@@ -2,7 +2,7 @@
 guards.py — Call require_auth() at the top of every protected page.
 
 Usage:
-    from utils.guards import require_auth
+    from utils.guards import require_auth, render_user_badge
     require_auth()
 """
 import streamlit as st
@@ -10,10 +10,13 @@ from utils.auth import is_logged_in, current_user, logout, is_admin
 
 
 def require_auth() -> None:
-    """Redirect to login if the user is not authenticated."""
+    """Show login prompt if the user is not authenticated (no switch_page needed)."""
     if not is_logged_in():
         st.warning("🔐 Please sign in to access this page.")
-        st.page_link("pages/0_Login.py", label="Go to Sign In", icon="🔐")
+        st.markdown(
+            "<a href='/' target='_self' style='color:#a5b4fc;'>← Go to Sign In</a>",
+            unsafe_allow_html=True,
+        )
         st.stop()
 
 
